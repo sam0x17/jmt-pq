@@ -10,7 +10,6 @@ repository = "https://github.com/penumbra-zone/jmt"
 homepage = "https://penumbra.zone"
 license = "Apache-2.0"
 edition = "2024"
-rust-version = "1.90"
 
 keywords = ["merkle-tree", "authenticated"]
 categories = ["cryptography", "data-structures"]
