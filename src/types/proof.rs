@@ -110,8 +110,8 @@ impl proptest::arbitrary::Arbitrary for SparseMerkleLeafNode {
 impl Clone for SparseMerkleLeafNode {
     fn clone(&self) -> Self {
         Self {
-            key_hash: self.key_hash.clone(),
-            value_hash: self.value_hash.clone(),
+            key_hash: self.key_hash,
+            value_hash: self.value_hash,
         }
     }
 }

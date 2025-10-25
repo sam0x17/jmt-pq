@@ -66,7 +66,7 @@ impl<H: SimpleHasher> PartialEq for SparseMerkleProof<H> {
 impl<H: SimpleHasher> Clone for SparseMerkleProof<H> {
     fn clone(&self) -> Self {
         Self {
-            leaf: self.leaf.clone(),
+            leaf: self.leaf,
             siblings: self.siblings.clone(),
             phantom_hasher: Default::default(),
         }
@@ -85,7 +85,7 @@ impl<H: SimpleHasher> SparseMerkleProof<H> {
 
     /// Returns the leaf node in this proof.
     pub fn leaf(&self) -> Option<SparseMerkleLeafNode> {
-        self.leaf.clone()
+        self.leaf
     }
 
     /// Returns the list of siblings in this proof.
@@ -135,7 +135,7 @@ impl<H: SimpleHasher> SparseMerkleProof<H> {
             self.siblings.len(),
         );
 
-        match (element_value, self.leaf.clone()) {
+        match (element_value, self.leaf) {
             (Some(value), Some(leaf)) => {
                 // This is an inclusion proof, so the key and value hash provided in the proof
                 // should match element_key and element_value_hash. `siblings` should prove the
@@ -181,7 +181,6 @@ impl<H: SimpleHasher> SparseMerkleProof<H> {
 
         let current_hash = self
             .leaf
-            .clone()
             .map_or(SPARSE_MERKLE_PLACEHOLDER_HASH, |leaf| leaf.hash::<H>());
         let actual_root_hash = self
             .siblings
@@ -485,7 +484,6 @@ impl<H: SimpleHasher> SparseMerkleProof<H> {
     pub fn root_hash(&self) -> RootHash {
         let current_hash = self
             .leaf
-            .clone()
             .map_or(SPARSE_MERKLE_PLACEHOLDER_HASH, |leaf| leaf.hash::<H>());
         let actual_root_hash = self
             .siblings
@@ -615,7 +613,7 @@ impl<H: SimpleHasher> Clone for SparseMerkleRangeProof<H> {
     fn clone(&self) -> Self {
         Self {
             right_siblings: self.right_siblings.clone(),
-            _phantom: self._phantom.clone(),
+            _phantom: self._phantom,
         }
     }
 }

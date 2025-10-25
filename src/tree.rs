@@ -522,7 +522,7 @@ where
 
         let zipped_hashes_proofs = root_hashes
             .into_iter()
-            .zip(batch_proofs.into_iter())
+            .zip(batch_proofs)
             .collect();
 
         Ok((zipped_hashes_proofs, update_batch))

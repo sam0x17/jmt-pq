@@ -263,11 +263,7 @@ impl Children {
             .iter_mut()
             .enumerate()
             .filter_map(|(nibble, child)| {
-                if let Some(child) = child {
-                    Some((Nibble::from(nibble as u8), child))
-                } else {
-                    None
-                }
+                child.as_mut().map(|child| (Nibble::from(nibble as u8), child))
             })
     }
 
@@ -282,11 +278,7 @@ impl Children {
             .iter()
             .enumerate()
             .filter_map(|(nibble, child)| {
-                if let Some(child) = child {
-                    Some((Nibble::from(nibble as u8), child))
-                } else {
-                    None
-                }
+                child.as_ref().map(|child| (Nibble::from(nibble as u8), child))
             })
     }
 }
@@ -490,7 +482,7 @@ impl InternalNode {
 
     /// Given a range [start, start + width), returns the sub-bitmap of that range.
     fn range_bitmaps(start: u8, width: u8, bitmaps: (u16, u16)) -> (u16, u16) {
-        assert!(start < 16 && width.count_ones() == 1 && start % width == 0);
+        assert!(start < 16 && width.count_ones() == 1 && start.is_multiple_of(width));
         assert!(width <= 16 && (start + width) <= 16);
         // A range with `start == 8` and `width == 4` will generate a mask 0b0000111100000000.
         // use as converting to smaller integer types when 'width == 16'
