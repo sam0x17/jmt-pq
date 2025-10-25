@@ -31,7 +31,7 @@ jobs:
       - uses: Swatinem/rust-cache@v1
       - name: cargo test
         run: >-
-          cargo test --no-default-features
+          cargo test --release --no-default-features
           && find -type f -iname '*.proptest-regressions' -exec cat {} +
 
   test-default-features:
@@ -47,7 +47,7 @@ jobs:
       - uses: Swatinem/rust-cache@v1
       - name: cargo test
         run: >-
-          cargo test
+          cargo test --release
           && find -type f -iname '*.proptest-regressions' -exec cat {} +
 
   test-all-features:
@@ -63,7 +63,7 @@ jobs:
       - uses: Swatinem/rust-cache@v1
       - name: cargo test
         run: >-
-          cargo test --all-features
+          cargo test --release --all-features
           && find -type f -iname '*.proptest-regressions' -exec cat {} +
 
   fmt:
