@@ -7,18 +7,18 @@ use alloc::{collections::BTreeSet, vec};
 use parking_lot::RwLock;
 
 use alloc::vec::Vec;
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 
 #[cfg(not(feature = "std"))]
-use hashbrown::{hash_map::Entry, HashMap};
+use hashbrown::{HashMap, hash_map::Entry};
 #[cfg(feature = "std")]
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::{HashMap, hash_map::Entry};
 
 use crate::{
+    KeyHash, OwnedValue,
     node_type::{LeafNode, Node, NodeKey},
     storage::{HasPreimage, NodeBatch, StaleNodeIndex, TreeReader, TreeUpdateBatch, TreeWriter},
     types::Version,
-    KeyHash, OwnedValue,
 };
 
 #[derive(Default, Debug)]
@@ -58,12 +58,11 @@ impl TreeReader for MockTreeStore {
         let mut node_key_and_node: Option<(NodeKey, LeafNode)> = None;
 
         for (key, value) in locked.nodes.iter() {
-            if let Node::Leaf(leaf_node) = value {
-                if node_key_and_node.is_none()
-                    || leaf_node.key_hash() > node_key_and_node.as_ref().unwrap().1.key_hash()
-                {
-                    node_key_and_node.replace((key.clone(), leaf_node.clone()));
-                }
+            if let Node::Leaf(leaf_node) = value
+                && (node_key_and_node.is_none()
+                    || leaf_node.key_hash() > node_key_and_node.as_ref().unwrap().1.key_hash())
+            {
+                node_key_and_node.replace((key.clone(), leaf_node.clone()));
             }
         }
 
@@ -166,11 +165,11 @@ impl MockTreeStore {
         put_value(&mut locked.value_history, version, key_hash, Some(value))
     }
 
-    pub fn put_key_preimage(&self, key_hash: KeyHash, preimage: &Vec<u8>) {
+    pub fn put_key_preimage(&self, key_hash: KeyHash, preimage: &[u8]) {
         self.data
             .write()
             .preimages
-            .insert(key_hash, preimage.clone());
+            .insert(key_hash, preimage.to_vec());
     }
 
     fn put_stale_node_index(&self, index: StaleNodeIndex) -> Result<()> {

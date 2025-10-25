@@ -8,16 +8,16 @@
 
 use alloc::{sync::Arc, vec::Vec};
 
-use anyhow::{bail, ensure, format_err, Result};
+use anyhow::{Result, bail, ensure, format_err};
 
 use crate::{
+    KeyHash, OwnedValue,
     node_type::{Child, InternalNode, Node, NodeKey},
     storage::TreeReader,
     types::{
-        nibble::{nibble_path::NibblePath, Nibble, ROOT_NIBBLE_HEIGHT},
         Version,
+        nibble::{Nibble, ROOT_NIBBLE_HEIGHT, nibble_path::NibblePath},
     },
-    KeyHash, OwnedValue,
 };
 
 /// `NodeVisitInfo` keeps track of the status of an internal node during the iteration process. It
@@ -340,7 +340,7 @@ where
                             Some(Ok(ret))
                         }
                         Err(e) => Some(Err(e)),
-                    }
+                    };
                 }
                 Ok(Node::Null) => return Some(Err(format_err!("Should not reach a null node."))),
                 Err(err) => return Some(Err(err)),

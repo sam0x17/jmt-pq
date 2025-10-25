@@ -1,24 +1,24 @@
 // Copyright (c) The Diem Core Contributors
 // SPDX-License-Identifier: Apache-2.0
-use crate::{mock::MockTreeStore, JellyfishMerkleTree, OwnedValue, SimpleHasher};
+use crate::{JellyfishMerkleTree, OwnedValue, SimpleHasher, mock::MockTreeStore};
 use alloc::{rc::Rc, vec::Vec};
 use borsh::{BorshDeserialize, BorshSerialize};
 use core::convert::TryInto;
 
 use alloc::vec;
 use proptest::prelude::*;
-use rand::{rngs::OsRng, Rng, RngCore};
+use rand::{Rng, RngCore, rngs::OsRng};
 use sha2::Sha256;
 
 use crate::{
+    KeyHash, SPARSE_MERKLE_PLACEHOLDER_HASH, ValueHash,
     node_type::{Child, Children, InternalNode, Node, NodeKey, NodeType},
     storage::TreeReader,
     types::{
-        nibble::{nibble_path::NibblePath, Nibble},
-        proof::{SparseMerkleInternalNode, SparseMerkleLeafNode},
         Version,
+        nibble::{Nibble, nibble_path::NibblePath},
+        proof::{SparseMerkleInternalNode, SparseMerkleLeafNode},
     },
-    KeyHash, ValueHash, SPARSE_MERKLE_PLACEHOLDER_HASH,
 };
 
 fn hash_internal(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
@@ -34,8 +34,7 @@ fn random_k_nibbles_node_key(k: u8) -> NodeKey {
     assert!(k < 64);
     let num_nibbles = k / 2;
     let remainder = k % 2;
-    let mut nibbles: Vec<u8> = Vec::with_capacity((num_nibbles + remainder).into());
-    nibbles.resize((num_nibbles + remainder).into(), 0);
+    let mut nibbles = vec![0u8; usize::from(num_nibbles + remainder)];
 
     OsRng.fill_bytes(&mut nibbles);
 
@@ -82,11 +81,8 @@ fn get_only_child_with_siblings_helper<H: SimpleHasher>(
     internal_node_key: &NodeKey,
     i: Nibble,
 ) -> (Option<NodeKey>, Vec<[u8; 32]>) {
-    let (child, siblings) = internal_node.get_only_child_with_siblings::<H>(
-        merkle_tree_reader,
-        internal_node_key,
-        i.into(),
-    );
+    let (child, siblings) =
+        internal_node.get_only_child_with_siblings::<H>(merkle_tree_reader, internal_node_key, i);
     (
         child,
         siblings.into_iter().map(|sib| sib.hash::<H>()).collect(),
@@ -397,12 +393,14 @@ value1 in prop::collection::vec(any::<u8>(), 1..10), value2 in prop::collection:
         children.insert(index5, Child::new(leaf_hashes[5], 0, NodeType::Leaf));
         let internal_node = InternalNode::new(children);
 
-        let mock_tree = mock_tree_from_values( vec![
-            vec![(leaf_keys[0].1, Some(leaf_values[0].clone())),
-            ((leaf_keys[1].1, Some(leaf_values[1].clone()))), ((leaf_keys[2].1, Some(leaf_values[2].clone()))),
-            ((leaf_keys[3].1, Some(leaf_values[3].clone()))), ((leaf_keys[4].1, Some(leaf_values[4].clone()))),
-            (leaf_keys[5].1, Some(leaf_values[5].clone()))],
-        ]);
+        let mock_tree = mock_tree_from_values(vec![vec![
+            (leaf_keys[0].1, Some(leaf_values[0].clone())),
+            (leaf_keys[1].1, Some(leaf_values[1].clone())),
+            (leaf_keys[2].1, Some(leaf_values[2].clone())),
+            (leaf_keys[3].1, Some(leaf_values[3].clone())),
+            (leaf_keys[4].1, Some(leaf_values[4].clone())),
+            (leaf_keys[5].1, Some(leaf_values[5].clone())),
+        ]]);
 
         // Internal node (B) will have a structure below
         //
@@ -1070,7 +1068,7 @@ impl NaiveInternalNode {
                     return (
                         Some(node_key.gen_child_node_key(node.version, node.index.into())),
                         siblings,
-                    )
+                    );
                 }
                 BinaryTreeNode::Null => return (None, siblings),
             }

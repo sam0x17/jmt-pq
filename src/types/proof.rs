@@ -8,15 +8,15 @@ pub(crate) mod definition;
 pub(crate) mod proptest_proof;
 
 use crate::{
-    proof::SparseMerkleNode::{Internal, Leaf},
     SimpleHasher,
+    proof::SparseMerkleNode::{Internal, Leaf},
 };
 
 #[cfg(all(test, feature = "std"))]
 use proptest_derive::Arbitrary;
 
 pub use self::definition::{SparseMerkleProof, SparseMerkleRangeProof, UpdateMerkleProof};
-use crate::{KeyHash, ValueHash, SPARSE_MERKLE_PLACEHOLDER_HASH};
+use crate::{KeyHash, SPARSE_MERKLE_PLACEHOLDER_HASH, ValueHash};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
@@ -89,7 +89,7 @@ pub struct SparseMerkleLeafNode {
 
 // Manually implement Arbitrary to get the correct bounds. The derived Arbitrary impl adds a spurious
 // H: Debug bound even with the proptest(no_bound) annotation
-#[cfg(any(test))]
+#[cfg(test)]
 impl proptest::arbitrary::Arbitrary for SparseMerkleLeafNode {
     type Parameters = ();
     type Strategy = proptest::strategy::BoxedStrategy<Self>;
@@ -109,10 +109,7 @@ impl proptest::arbitrary::Arbitrary for SparseMerkleLeafNode {
 // TODO: Switch back to #[derive] once the perfect_derive feature lands
 impl Clone for SparseMerkleLeafNode {
     fn clone(&self) -> Self {
-        Self {
-            key_hash: self.key_hash,
-            value_hash: self.value_hash,
-        }
+        *self
     }
 }
 

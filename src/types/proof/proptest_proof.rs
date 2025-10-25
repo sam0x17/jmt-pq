@@ -8,8 +8,8 @@ use alloc::vec::Vec;
 use proptest::{collection::vec, prelude::*};
 
 use crate::{
-    types::proof::{SparseMerkleLeafNode, SparseMerkleProof, SparseMerkleRangeProof},
     SimpleHasher,
+    types::proof::{SparseMerkleLeafNode, SparseMerkleProof, SparseMerkleRangeProof},
 };
 
 use super::SparseMerkleNode;

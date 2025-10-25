@@ -5,10 +5,11 @@ use alloc::string::ToString;
 use alloc::vec::Vec;
 use alloc::{format, vec};
 
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use crate::SimpleHasher;
 use crate::{
+    JellyfishMerkleTree, KeyHash, MissingRootError, SPARSE_MERKLE_PLACEHOLDER_HASH,
     mock::MockTreeStore,
     node_type::{Child, Children, Node, NodeKey, NodeType},
     storage::{TreeReader, TreeUpdateBatch},
@@ -21,16 +22,15 @@ use crate::{
         test_get_with_proof_with_distinct_last_nibble,
     },
     types::{
-        nibble::{nibble_path::NibblePath, Nibble},
         Version,
+        nibble::{Nibble, nibble_path::NibblePath},
     },
-    JellyfishMerkleTree, KeyHash, MissingRootError, SPARSE_MERKLE_PLACEHOLDER_HASH,
 };
 
 fn update_nibble(original_key: &KeyHash, n: usize, nibble: u8) -> KeyHash {
     assert!(nibble < 16);
     let mut key = original_key.0;
-    key[n / 2] = if n % 2 == 0 {
+    key[n / 2] = if n.is_multiple_of(2) {
         key[n / 2] & 0x0f | nibble << 4
     } else {
         key[n / 2] & 0xf0 | nibble
@@ -555,27 +555,33 @@ fn test_non_existence<H: SimpleHasher>() {
         let non_existing_key = update_nibble(&key1, 0, 1);
         let (value, proof) = tree.get_with_proof(non_existing_key, 0).unwrap();
         assert_eq!(value, None);
-        assert!(proof
-            .verify_nonexistence(roots[0], non_existing_key)
-            .is_ok());
+        assert!(
+            proof
+                .verify_nonexistence(roots[0], non_existing_key)
+                .is_ok()
+        );
     }
     // 2. Non-existing node at non-root internal node
     {
         let non_existing_key = update_nibble(&key1, 1, 15);
         let (value, proof) = tree.get_with_proof(non_existing_key, 0).unwrap();
         assert_eq!(value, None);
-        assert!(proof
-            .verify_nonexistence(roots[0], non_existing_key)
-            .is_ok());
+        assert!(
+            proof
+                .verify_nonexistence(roots[0], non_existing_key)
+                .is_ok()
+        );
     }
     // 3. Non-existing node at leaf node
     {
         let non_existing_key = update_nibble(&key1, 2, 4);
         let (value, proof) = tree.get_with_proof(non_existing_key, 0).unwrap();
         assert_eq!(value, None);
-        assert!(proof
-            .verify_nonexistence(roots[0], non_existing_key)
-            .is_ok());
+        assert!(
+            proof
+                .verify_nonexistence(roots[0], non_existing_key)
+                .is_ok()
+        );
     }
 }
 
@@ -636,7 +642,7 @@ fn test_put_value_sets<H: SimpleHasher>() {
         }
     }
     {
-        let mut iter = keys.into_iter().zip(values.into_iter());
+        let mut iter = keys.into_iter().zip(values);
         let db = MockTreeStore::default();
         let tree = JellyfishMerkleTree::<_, H>::new(&db);
         let mut value_sets = vec![];

@@ -1,4 +1,3 @@
-#![cfg(test)]
 mod compute_vectors;
 mod helper;
 mod iterator;

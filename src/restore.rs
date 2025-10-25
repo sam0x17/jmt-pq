@@ -13,25 +13,25 @@ use alloc::boxed::Box;
 use alloc::vec;
 use alloc::{sync::Arc, vec::Vec};
 
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use mirai_annotations::*;
 
 use crate::{
+    Bytes32Ext, KeyHash, OwnedValue, ROOT_NIBBLE_HEIGHT, RootHash, SPARSE_MERKLE_PLACEHOLDER_HASH,
+    SimpleHasher, ValueHash,
     node_type::{
-        get_child_and_sibling_half_start, Child, Children, InternalNode, LeafNode, Node, NodeKey,
-        NodeType,
+        Child, Children, InternalNode, LeafNode, Node, NodeKey, NodeType,
+        get_child_and_sibling_half_start,
     },
     storage::{NodeBatch, TreeReader, TreeWriter},
     types::{
+        Version,
         nibble::{
-            nibble_path::{NibbleIterator, NibblePath},
             Nibble,
+            nibble_path::{NibbleIterator, NibblePath},
         },
         proof::{SparseMerkleInternalNode, SparseMerkleLeafNode, SparseMerkleRangeProof},
-        Version,
     },
-    Bytes32Ext, KeyHash, OwnedValue, RootHash, SimpleHasher, ValueHash, ROOT_NIBBLE_HEIGHT,
-    SPARSE_MERKLE_PLACEHOLDER_HASH,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -664,14 +664,14 @@ impl<H: SimpleHasher> JellyfishMerkleRestore<H> {
                 }
             }
 
-            if num_children == 1 {
-                if let Some(node) = leaf {
-                    let node_key = NodeKey::new_empty_path(self.version);
-                    assert!(self.frozen_nodes.is_empty());
-                    self.frozen_nodes.insert_node(node_key, node.into());
-                    self.store.write_node_batch(&self.frozen_nodes)?;
-                    return Ok(());
-                }
+            if num_children == 1
+                && let Some(node) = leaf
+            {
+                let node_key = NodeKey::new_empty_path(self.version);
+                assert!(self.frozen_nodes.is_empty());
+                self.frozen_nodes.insert_node(node_key, node.into());
+                self.store.write_node_batch(&self.frozen_nodes)?;
+                return Ok(());
             }
         }
 

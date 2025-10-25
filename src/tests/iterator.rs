@@ -5,13 +5,13 @@ use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 use alloc::{format, vec};
 
 use anyhow::Result;
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use sha2::Sha256;
 
 use super::helper::plus_one;
 use crate::{
-    iterator::JellyfishMerkleIterator, mock::MockTreeStore, types::Version, KeyHash, OwnedValue,
-    Sha256Jmt,
+    KeyHash, OwnedValue, Sha256Jmt, iterator::JellyfishMerkleIterator, mock::MockTreeStore,
+    types::Version,
 };
 
 #[test]

@@ -73,7 +73,7 @@ extern crate alloc;
 
 use core::fmt::Debug;
 
-use digest::{consts::U32, Digest};
+use digest::{Digest, consts::U32};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "std")]
 use thiserror::Error;
@@ -93,15 +93,15 @@ pub mod restore;
 
 use bytes32ext::Bytes32Ext;
 pub use iterator::JellyfishMerkleIterator;
-#[cfg(feature = "ics23")]
-pub use tree::ics23_impl::ics23_spec;
 pub use tree::JellyfishMerkleTree;
 #[cfg(any(test, feature = "sha2"))]
 pub use tree::Sha256Jmt;
+#[cfg(feature = "ics23")]
+pub use tree::ics23_impl::ics23_spec;
 
+pub use types::Version;
 use types::nibble::ROOT_NIBBLE_HEIGHT;
 pub use types::proof;
-pub use types::Version;
 
 /// Contains types used to bridge a [`JellyfishMerkleTree`](crate::JellyfishMerkleTree)
 /// to the backing storage recording the tree's internal data.
@@ -117,7 +117,7 @@ pub mod storage {
     use super::*;
 }
 
-#[cfg(any(test))]
+#[cfg(test)]
 mod tests;
 
 /// An error that occurs when the state root for a requested version is missing (e.g., because it was pruned).
@@ -149,7 +149,7 @@ const SPARSE_MERKLE_PLACEHOLDER_HASH: [u8; 32] = *b"SPARSE_MERKLE_PLACEHOLDER_HA
 /// An owned value stored in the [`JellyfishMerkleTree`].
 pub type OwnedValue = alloc::vec::Vec<u8>;
 
-#[cfg(any(test))]
+#[cfg(test)]
 use proptest_derive::Arbitrary;
 
 /// A root of a [`JellyfishMerkleTree`].

@@ -3,23 +3,23 @@ use alloc::format;
 use alloc::vec;
 use alloc::vec::Vec;
 use proptest::{proptest, strategy::Strategy};
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use sha2::Sha256;
 
 use crate::{
+    JellyfishMerkleTree, KeyHash, RootHash, Sha256Jmt, Version,
     mock::MockTreeStore,
     storage::Node,
     tests::helper::{
         arb_interleaved_insertions_and_deletions, arb_partitions,
         test_clairvoyant_construction_matches_interleaved_construction_proved,
     },
-    JellyfishMerkleTree, KeyHash, RootHash, Sha256Jmt, Version,
 };
 
 fn update_nibble(original_key: &KeyHash, n: usize, nibble: u8) -> KeyHash {
     assert!(nibble < 16);
     let mut key = original_key.0;
-    key[n / 2] = if n % 2 == 0 {
+    key[n / 2] = if n.is_multiple_of(2) {
         key[n / 2] & 0x0f | nibble << 4
     } else {
         key[n / 2] & 0xf0 | nibble
@@ -38,9 +38,11 @@ fn insert_and_perform_checks(batches: Vec<Vec<(KeyHash, Option<Vec<u8>>)>>) {
         .unwrap();
     db.write_tree_update_batch(batch).unwrap();
 
-    assert!(proof
-        .verify_update(RootHash(Node::new_null().hash::<Sha256>()), root, one_batch)
-        .is_ok());
+    assert!(
+        proof
+            .verify_update(RootHash(Node::new_null().hash::<Sha256>()), root, one_batch)
+            .is_ok()
+    );
 }
 
 // Simple update proof test to check we can produce and verify merkle proofs for insertion
@@ -89,21 +91,27 @@ fn test_update_proof() {
     let (root_hash2, proof2) = new_root_hash_and_proofs.pop().unwrap();
     let (root_hash1, proof1) = new_root_hash_and_proofs.pop().unwrap();
 
-    assert!(proof1
-        .verify_update(
-            RootHash(Node::new_null().hash::<Sha256>()),
-            root_hash1,
-            &value_sets[0]
-        )
-        .is_ok());
+    assert!(
+        proof1
+            .verify_update(
+                RootHash(Node::new_null().hash::<Sha256>()),
+                root_hash1,
+                &value_sets[0]
+            )
+            .is_ok()
+    );
 
-    assert!(proof2
-        .verify_update(root_hash1, root_hash2, &value_sets[1])
-        .is_ok());
+    assert!(
+        proof2
+            .verify_update(root_hash1, root_hash2, &value_sets[1])
+            .is_ok()
+    );
 
-    assert!(proof3
-        .verify_update(root_hash2, root_hash3, &value_sets[2])
-        .is_ok());
+    assert!(
+        proof3
+            .verify_update(root_hash2, root_hash3, &value_sets[2])
+            .is_ok()
+    );
 }
 
 #[test]
@@ -470,13 +478,15 @@ fn test_gets_then_delete_with_proof() {
     let (root2, proof2) = update_root.pop().unwrap();
     let (root1, proof1) = update_root.pop().unwrap();
 
-    assert!(proof1
-        .verify_update(
-            RootHash(Node::new_null().hash::<Sha256>()),
-            root1,
-            &value_sets[0]
-        )
-        .is_ok());
+    assert!(
+        proof1
+            .verify_update(
+                RootHash(Node::new_null().hash::<Sha256>()),
+                root1,
+                &value_sets[0]
+            )
+            .is_ok()
+    );
     assert!(proof2.verify_update(root1, root2, &value_sets[1]).is_ok());
 }
 

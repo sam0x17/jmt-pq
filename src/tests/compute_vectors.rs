@@ -3,11 +3,11 @@
 use sha2::Sha256;
 
 use crate::{
+    KeyHash, SPARSE_MERKLE_PLACEHOLDER_HASH, SimpleHasher, ValueHash,
     proof::{INTERNAL_DOMAIN_SEPARATOR, LEAF_DOMAIN_SEPARATOR},
-    KeyHash, SimpleHasher, ValueHash, SPARSE_MERKLE_PLACEHOLDER_HASH,
 };
 
-const DESCRIPTION: &'static str =  "Manually computed test vectors for a JMT instantiated with the sha2-256 hash function. Keys and values are hex-encoded byte strings. Neither keys nor values have been pre-hashed.";
+const DESCRIPTION: &str = "Manually computed test vectors for a JMT instantiated with the sha2-256 hash function. Keys and values are hex-encoded byte strings. Neither keys nor values have been pre-hashed.";
 
 use super::vectors::{KeyValuePair, TestVector};
 
@@ -46,7 +46,7 @@ fn compute_vector_with_one_leaf() -> TestVector {
     let expected_root = leaf_hash;
 
     TestVector {
-        expected_root: expected_root.into(),
+        expected_root,
         data: vec![KeyValuePair {
             key: key.to_vec(),
             value: value.to_vec(),
@@ -70,7 +70,7 @@ fn compute_vector_with_two_leaves() -> TestVector {
     let expected_root = internal_hash(left_leaf_hash, right_leaf_hash);
 
     TestVector {
-        expected_root: expected_root.into(),
+        expected_root,
         data: vec![
             KeyValuePair {
                 key: left_key.to_vec(),

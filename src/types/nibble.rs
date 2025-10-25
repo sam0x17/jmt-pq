@@ -9,7 +9,7 @@ pub mod nibble_path;
 
 use core::fmt;
 
-#[cfg(any(test))]
+#[cfg(test)]
 use proptest::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -71,12 +71,12 @@ impl<'a> core::iter::Iterator for NibbleRangeIterator<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let left = self.pos;
         if self.pos < self.sorted_kvs.len() {
-            let cur_nibble: u8 = self.sorted_kvs[left].0 .0.nibble(self.nibble_idx);
+            let cur_nibble: u8 = self.sorted_kvs[left].0.0.nibble(self.nibble_idx);
             let (mut i, mut j) = (left, self.sorted_kvs.len() - 1);
             // Find the last index of the cur_nibble.
             while i < j {
                 let mid = j - (j - i) / 2;
-                if self.sorted_kvs[mid].0 .0.nibble(self.nibble_idx) > cur_nibble {
+                if self.sorted_kvs[mid].0.0.nibble(self.nibble_idx) > cur_nibble {
                     j = mid - 1;
                 } else {
                     i = mid;
@@ -90,7 +90,7 @@ impl<'a> core::iter::Iterator for NibbleRangeIterator<'a> {
     }
 }
 
-#[cfg(any(test))]
+#[cfg(test)]
 impl Arbitrary for Nibble {
     type Parameters = ();
     type Strategy = BoxedStrategy<Self>;

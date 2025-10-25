@@ -17,19 +17,26 @@ use proptest::{
     sample,
 };
 
-use crate::proof::definition::UpdateMerkleProof;
 use crate::SimpleHasher;
+use crate::proof::definition::UpdateMerkleProof;
 use crate::{
+    Bytes32Ext, JellyfishMerkleIterator, JellyfishMerkleTree, KeyHash, OwnedValue, RootHash,
+    SPARSE_MERKLE_PLACEHOLDER_HASH, ValueHash,
     mock::MockTreeStore,
     node_type::LeafNode,
     storage::Node,
     types::{
+        PRE_GENESIS_VERSION, Version,
         proof::{SparseMerkleInternalNode, SparseMerkleRangeProof},
-        Version, PRE_GENESIS_VERSION,
     },
-    Bytes32Ext, JellyfishMerkleIterator, JellyfishMerkleTree, KeyHash, OwnedValue, RootHash,
-    ValueHash, SPARSE_MERKLE_PLACEHOLDER_HASH,
 };
+
+type RootProofRecord<H> = (
+    RootHash,
+    UpdateMerkleProof<H>,
+    Vec<(KeyHash, Option<Vec<u8>>)>,
+);
+type RootProofRecords<H> = Vec<RootProofRecord<H>>;
 
 /// Computes the key immediately after `key`.
 pub fn plus_one(key: KeyHash) -> KeyHash {
@@ -101,28 +108,13 @@ pub fn init_mock_db_with_deletions_afterwards<H: SimpleHasher>(
 fn init_mock_db_versioned<H: SimpleHasher>(
     operations_by_version: Vec<Vec<(KeyHash, Vec<u8>)>>,
     with_proof: bool,
-) -> (
-    MockTreeStore,
-    Version,
-    Option<
-        Vec<(
-            RootHash,
-            UpdateMerkleProof<H>,
-            Vec<(KeyHash, Option<Vec<u8>>)>,
-        )>,
-    >,
-) {
+) -> (MockTreeStore, Version, Option<RootProofRecords<H>>) {
     assert!(!operations_by_version.is_empty());
 
     let db = MockTreeStore::default();
     let tree = JellyfishMerkleTree::<_, H>::new(&db);
-    let mut roots_proofs: Option<
-        Vec<(
-            RootHash,
-            UpdateMerkleProof<H>,
-            Vec<(KeyHash, Option<Vec<u8>>)>,
-        )>,
-    > = if with_proof { Some(Vec::new()) } else { None };
+    let mut roots_proofs: Option<RootProofRecords<H>> =
+        if with_proof { Some(Vec::new()) } else { None };
 
     if operations_by_version
         .iter()
@@ -158,9 +150,9 @@ fn init_mock_db_versioned<H: SimpleHasher>(
 
             db.write_tree_update_batch(write_batch).unwrap();
 
-            roots_proofs
-                .as_mut()
-                .map(|proofs| proofs.push((root_hash, proof_opt.unwrap(), operations.collect())));
+            if let Some(proofs) = roots_proofs.as_mut() {
+                proofs.push((root_hash, proof_opt.unwrap(), operations.collect()));
+            }
 
             next_version += 1;
         }
@@ -174,22 +166,13 @@ fn init_mock_db_versioned<H: SimpleHasher>(
 fn init_mock_db_versioned_with_deletions<H: SimpleHasher>(
     operations_by_version: Vec<Vec<(KeyHash, Option<Vec<u8>>)>>,
     with_proof: bool,
-) -> (
-    MockTreeStore,
-    Version,
-    Option<
-        Vec<(
-            RootHash,
-            UpdateMerkleProof<H>,
-            Vec<(KeyHash, Option<Vec<u8>>)>,
-        )>,
-    >,
-) {
+) -> (MockTreeStore, Version, Option<RootProofRecords<H>>) {
     assert!(!operations_by_version.is_empty());
 
     let db = MockTreeStore::default();
     let tree = JellyfishMerkleTree::<_, H>::new(&db);
-    let mut roots_proofs = if with_proof { Some(Vec::new()) } else { None };
+    let mut roots_proofs: Option<RootProofRecords<H>> =
+        if with_proof { Some(Vec::new()) } else { None };
 
     if operations_by_version
         .iter()
@@ -212,9 +195,9 @@ fn init_mock_db_versioned_with_deletions<H: SimpleHasher>(
 
             db.write_tree_update_batch(write_batch).unwrap();
 
-            roots_proofs
-                .as_mut()
-                .map(|proofs| proofs.push((root_hash, proof_opt.unwrap(), operations)));
+            if let Some(proofs) = roots_proofs.as_mut() {
+                proofs.push((root_hash, proof_opt.unwrap(), operations));
+            }
 
             next_version += 1;
         }
@@ -631,8 +614,8 @@ pub fn test_clairvoyant_construction_matches_interleaved_construction_proved(
     }
 }
 
-pub fn arb_kv_pair_with_distinct_last_nibble(
-) -> impl Strategy<Value = ((KeyHash, OwnedValue), (KeyHash, OwnedValue))> {
+pub fn arb_kv_pair_with_distinct_last_nibble()
+-> impl Strategy<Value = ((KeyHash, OwnedValue), (KeyHash, OwnedValue))> {
     (
         any::<KeyHash>().prop_filter("Can't be 0xffffff...", |key| *key != KeyHash([0xff; 32])),
         vec(any::<OwnedValue>(), 2),

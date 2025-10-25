@@ -3,13 +3,13 @@ use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
 use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
-#[cfg(any(test))]
+#[cfg(test)]
 use proptest_derive::Arbitrary;
 
 use crate::{
+    KeyHash, OwnedValue,
     node_type::{Node, NodeKey},
     types::Version,
-    KeyHash, OwnedValue,
 };
 
 /// Defines the interface used to write a batch of updates from a

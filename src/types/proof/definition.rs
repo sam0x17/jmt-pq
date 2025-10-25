@@ -6,12 +6,12 @@ use core::marker::PhantomData;
 
 use super::{SparseMerkleInternalNode, SparseMerkleLeafNode, SparseMerkleNode};
 use crate::{
+    Bytes32Ext, KeyHash, RootHash, SPARSE_MERKLE_PLACEHOLDER_HASH, SimpleHasher, ValueHash,
     storage::Node,
-    types::nibble::nibble_path::{skip_common_prefix, NibblePath},
-    Bytes32Ext, KeyHash, RootHash, SimpleHasher, ValueHash, SPARSE_MERKLE_PLACEHOLDER_HASH,
+    types::nibble::nibble_path::{NibblePath, skip_common_prefix},
 };
 use alloc::vec::Vec;
-use anyhow::{bail, ensure, format_err, Result};
+use anyhow::{Result, bail, ensure, format_err};
 use serde::{Deserialize, Serialize};
 
 /// A proof that can be used to authenticate an element in a Sparse Merkle Tree given trusted root
@@ -220,7 +220,8 @@ impl<H: SimpleHasher> SparseMerkleProof<H> {
     /// - Compute the number of default leaves to separate the old leaf from the new leaf in the last nibble
     /// - Compute the number of default leaves to traverse the common prefix
     /// - Compute the number of default leaves remaining to select the former old leaf in the former last nibble
-    /// (this leaf becomes an internal node, hence the path needs to be fully specified)
+    ///
+    /// (This leaf becomes an internal node, hence the path needs to be fully specified.)
     fn compute_new_merkle_path_on_split<V: AsRef<[u8]>>(
         mut self,
         leaf_node: SparseMerkleLeafNode,
@@ -343,9 +344,10 @@ impl<H: SimpleHasher> SparseMerkleProof<H> {
 
                 // There is no leaf in the Merkle path, which means the key we are going to insert does not update an existing leaf
                 None => {
-                    ensure!(self
-                        .verify_nonexistence(old_root_hash, new_element_key)
-                        .is_ok());
+                    ensure!(
+                        self.verify_nonexistence(old_root_hash, new_element_key)
+                            .is_ok()
+                    );
 
                     // Step 2: we compute the new Merkle path (we build a new [`SparseMerkleProof`] object)
                     // In that case, the leaf is none so we don't need to change the siblings
@@ -524,10 +526,12 @@ impl<H: SimpleHasher> UpdateMerkleProof<H> {
     ///    - Insert a tuple `new_element_key`, `new_element_value`
     ///    - Update a tuple `new_element_key`, `new_element_value`
     ///    - Delete the `new_element_key`
+    ///
     /// This function does the following high level operations:
     ///    1. Verify the Merkle path provided against the `old_root_hash`
     ///    2. Use the provided Merkle path and the tuple (`new_element_key`, `new_element_value`) to compute the new Merkle path.
     ///    3. Compare the new Merkle path against the new_root_hash
+    ///
     /// If these steps are verified then the [`JellyfishMerkleTree`] has been soundly updated
     ///
     /// This function consumes the Merkle proof to avoid uneccessary copying.
@@ -702,8 +706,8 @@ mod serialization_tests {
     use sha2::Sha256;
 
     use crate::{
-        proof::{SparseMerkleInternalNode, SparseMerkleLeafNode, SparseMerkleNode},
         KeyHash, ValueHash,
+        proof::{SparseMerkleInternalNode, SparseMerkleLeafNode, SparseMerkleNode},
     };
 
     use super::{SparseMerkleProof, SparseMerkleRangeProof};

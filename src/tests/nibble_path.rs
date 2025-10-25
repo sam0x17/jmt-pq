@@ -6,8 +6,8 @@ use alloc::{format, vec};
 use proptest::prelude::*;
 
 use crate::types::nibble::{
-    nibble_path::{arb_internal_nibble_path, skip_common_prefix, NibblePath},
     Nibble,
+    nibble_path::{NibblePath, arb_internal_nibble_path, skip_common_prefix},
 };
 
 #[test]

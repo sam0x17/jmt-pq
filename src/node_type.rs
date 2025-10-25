@@ -16,20 +16,20 @@ use alloc::vec::Vec;
 use alloc::{boxed::Box, vec};
 use anyhow::Context;
 use borsh::{BorshDeserialize, BorshSerialize};
-#[cfg(any(test))]
+#[cfg(test)]
 use proptest::prelude::*;
-#[cfg(any(test))]
+#[cfg(test)]
 use proptest_derive::Arbitrary;
 use serde::{Deserialize, Serialize};
 
 use crate::proof::SparseMerkleNode;
 use crate::{
+    KeyHash, SPARSE_MERKLE_PLACEHOLDER_HASH, ValueHash,
     types::{
-        nibble::{nibble_path::NibblePath, Nibble},
-        proof::{SparseMerkleInternalNode, SparseMerkleLeafNode},
         Version,
+        nibble::{Nibble, nibble_path::NibblePath},
+        proof::{SparseMerkleInternalNode, SparseMerkleLeafNode},
     },
-    KeyHash, ValueHash, SPARSE_MERKLE_PLACEHOLDER_HASH,
 };
 
 /// The unique key of each node.
@@ -116,7 +116,7 @@ pub enum NodeType {
     Internal { leaf_count: usize },
 }
 
-#[cfg(any(test))]
+#[cfg(test)]
 impl Arbitrary for NodeType {
     type Parameters = ();
     type Strategy = BoxedStrategy<Self>;
@@ -195,7 +195,7 @@ pub struct Children {
     num_children: usize,
 }
 
-#[cfg(any(test))]
+#[cfg(test)]
 impl Arbitrary for Children {
     type Parameters = ();
     type Strategy = BoxedStrategy<Self>;
@@ -262,7 +262,9 @@ impl Children {
             .iter_mut()
             .enumerate()
             .filter_map(|(nibble, child)| {
-                child.as_mut().map(|child| (Nibble::from(nibble as u8), child))
+                child
+                    .as_mut()
+                    .map(|child| (Nibble::from(nibble as u8), child))
             })
     }
 
@@ -277,7 +279,9 @@ impl Children {
             .iter()
             .enumerate()
             .filter_map(|(nibble, child)| {
-                child.as_ref().map(|child| (Nibble::from(nibble as u8), child))
+                child
+                    .as_ref()
+                    .map(|child| (Nibble::from(nibble as u8), child))
             })
     }
 }
@@ -339,12 +343,12 @@ impl SparseMerkleInternalNode {
 ///
 /// However, if an internal node doesn't have all 16 chidren exist at height 0 but just a few of
 /// them, we have a modified hashing rule on top of what is stated above:
-/// 1. From top to bottom, a node will be replaced by a leaf child if the subtree rooted at this
-/// node has only one child at height 0 and it is a leaf child.
-/// 2. From top to bottom, a node will be replaced by the placeholder node if the subtree rooted at
-/// this node doesn't have any child at height 0. For example, if an internal node has 3 leaf
-/// children at index 0, 3, 8, respectively, and 1 internal node at index C, then the computation
-/// graph will be like:
+///   1. From top to bottom, a node will be replaced by a leaf child if the subtree rooted at this
+///      node has only one child at height 0 and it is a leaf child.
+///   2. From top to bottom, a node will be replaced by the placeholder node if the subtree rooted at
+///      this node doesn't have any child at height 0. For example, if an internal node has 3 leaf
+///      children at index 0, 3, 8, respectively, and 1 internal node at index C, then the computation
+///      graph will be like:
 ///
 /// ```text
 ///   4 ->              +------ root hash ------+
@@ -360,7 +364,7 @@ impl SparseMerkleInternalNode {
 /// height
 /// Note: @ denotes placeholder hash.
 /// ```
-#[cfg(any(test))]
+#[cfg(test)]
 impl Arbitrary for InternalNode {
     type Parameters = ();
     type Strategy = BoxedStrategy<Self>;
@@ -892,7 +896,7 @@ impl Node {
     }
 
     /// Creates the [`Internal`](Node::Internal) variant.
-    #[cfg(any(test))]
+    #[cfg(test)]
     pub(crate) fn new_internal(children: Children) -> Self {
         Node::Internal(InternalNode::new(children))
     }
@@ -903,7 +907,7 @@ impl Node {
     }
 
     /// Creates the [`Leaf`](Node::Leaf) variant by hashing a raw value.
-    #[cfg(any(test))]
+    #[cfg(test)]
     pub(crate) fn leaf_from_value<H: SimpleHasher>(
         key_hash: KeyHash,
         value: impl AsRef<[u8]>,

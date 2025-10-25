@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use anyhow::{format_err, Result};
+use anyhow::{Result, format_err};
 
 use crate::node_type::{LeafNode, Node, NodeKey};
 use crate::{KeyHash, OwnedValue, Version};

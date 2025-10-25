@@ -2,7 +2,7 @@ use alloc::{string::String, vec::Vec};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 
-use crate::{mock::MockTreeStore, KeyHash, Sha256Jmt};
+use crate::{KeyHash, Sha256Jmt, mock::MockTreeStore};
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct TestVectorWrapper {

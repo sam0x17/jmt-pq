@@ -36,6 +36,7 @@
 //! left child and the new root. We should
 //!   1) create a new version for `key1` child.
 //!   2) update `root1'` directly instead of making another version.
+//!
 //! The resulting tree should look like:
 //!
 //! ```text
@@ -59,28 +60,30 @@
 //! collection of the following operations:
 //!   - Put a new node.
 //!   - Delete a node.
+//!
 //! When we apply these operations on a multi-version tree:
 //!   1) Put a new node.
 //!   2) When we remove a node, if the node is in the previous on-disk version, we don't need to do
 //!      anything. Otherwise we delete it from the tree cache.
+//!
 //! Updating node could be operated as deletion of the node followed by insertion of the updated
 //! node.
 
 use alloc::{collections::BTreeSet, vec::Vec};
 #[cfg(not(feature = "std"))]
-use hashbrown::{hash_map::Entry, HashMap, HashSet};
+use hashbrown::{HashMap, HashSet, hash_map::Entry};
 #[cfg(feature = "std")]
-use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::collections::{HashMap, HashSet, hash_map::Entry};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use crate::{
+    KeyHash, OwnedValue, RootHash, SimpleHasher,
     node_type::{Node, NodeKey},
     storage::{
         NodeBatch, NodeStats, StaleNodeIndex, StaleNodeIndexBatch, TreeReader, TreeUpdateBatch,
     },
-    types::{Version, PRE_GENESIS_VERSION},
-    KeyHash, OwnedValue, RootHash, SimpleHasher,
+    types::{PRE_GENESIS_VERSION, Version},
 };
 
 /// `FrozenTreeCache` is used as a field of `TreeCache` storing all the nodes and values that

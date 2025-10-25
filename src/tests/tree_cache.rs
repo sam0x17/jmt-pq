@@ -1,16 +1,16 @@
 // Copyright (c) The Diem Core Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use rand::{rngs::OsRng, Rng};
+use rand::{Rng, rngs::OsRng};
 use sha2::Sha256;
 
 use crate::{
+    KeyHash, OwnedValue, ValueHash,
     mock::MockTreeStore,
     node_type::{Node, NodeKey},
     storage::LeafNode,
     tree_cache::TreeCache,
-    types::{nibble::nibble_path::NibblePath, Version, PRE_GENESIS_VERSION},
-    KeyHash, OwnedValue, ValueHash,
+    types::{PRE_GENESIS_VERSION, Version, nibble::nibble_path::NibblePath},
 };
 
 fn random_leaf_with_key(next_version: Version) -> (LeafNode, OwnedValue, NodeKey) {
@@ -79,9 +79,7 @@ fn test_freeze_with_delete() {
     cache.put_node(node1_key.clone(), node1.clone()).unwrap();
     let (node2, _, node2_key) = random_leaf_with_key(next_version);
     let node2: Node = node2.into();
-    cache
-        .put_node(node2_key.clone(), node2.clone().into())
-        .unwrap();
+    cache.put_node(node2_key.clone(), node2.clone()).unwrap();
     assert_eq!(cache.get_node(&node1_key).unwrap(), node1);
     assert_eq!(cache.get_node(&node2_key).unwrap(), node2);
     cache.freeze::<Sha256>().unwrap();

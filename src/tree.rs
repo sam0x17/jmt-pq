@@ -1,8 +1,8 @@
-use crate::storage::Node::Leaf;
 use crate::SPARSE_MERKLE_PLACEHOLDER_HASH;
+use crate::storage::Node::Leaf;
 use alloc::{collections::BTreeMap, vec::Vec};
 use alloc::{format, vec};
-use anyhow::{bail, ensure, format_err, Context, Result};
+use anyhow::{Context, Result, bail, ensure, format_err};
 use core::marker::PhantomData;
 use core::{cmp::Ordering, convert::TryInto};
 #[cfg(not(feature = "std"))]
@@ -13,19 +13,24 @@ use std::collections::HashMap;
 use crate::proof::definition::UpdateMerkleProof;
 use crate::proof::{SparseMerkleLeafNode, SparseMerkleNode};
 use crate::{
+    Bytes32Ext, KeyHash, MissingRootError, OwnedValue, RootHash, SimpleHasher, ValueHash,
     node_type::{Child, Children, InternalNode, LeafNode, Node, NodeKey, NodeType},
     storage::{TreeReader, TreeUpdateBatch},
     tree_cache::TreeCache,
     types::{
+        Version,
         nibble::{
-            nibble_path::{skip_common_prefix, NibbleIterator, NibblePath},
             Nibble, NibbleRangeIterator, ROOT_NIBBLE_HEIGHT,
+            nibble_path::{NibbleIterator, NibblePath, skip_common_prefix},
         },
         proof::{SparseMerkleProof, SparseMerkleRangeProof},
-        Version,
     },
-    Bytes32Ext, KeyHash, MissingRootError, OwnedValue, RootHash, SimpleHasher, ValueHash,
 };
+
+type RootProofs<H> = Vec<(RootHash, UpdateMerkleProof<H>)>;
+type PutNodeResult = PutResult<(NodeKey, Node)>;
+type PutOutcome<H> = Result<(PutNodeResult, Option<SparseMerkleProof<H>>)>;
+type ProofQueryResult<H> = Result<(OwnedValue, SparseMerkleProof<H>), ExclusionProof<H>>;
 
 /// A [`JellyfishMerkleTree`] instantiated using the `sha2::Sha256` hasher.
 /// This is a sensible default choice for most applications.
@@ -148,7 +153,7 @@ where
                 for (left, right) in NibbleRangeIterator::new(kvs, depth) {
                     // Traverse downwards from this internal node recursively by splitting the updates into
                     // each child index
-                    let child_index = kvs[left].0 .0.get_nibble(depth);
+                    let child_index = kvs[left].0.0.get_nibble(depth);
 
                     let (new_child_node_key, new_child_node) =
                         match internal_node.child(child_index) {
@@ -250,7 +255,7 @@ where
             let mut isolated_existing_leaf = true;
             let mut children = Children::new();
             for (left, right) in NibbleRangeIterator::new(kvs, depth) {
-                let child_index = kvs[left].0 .0.get_nibble(depth);
+                let child_index = kvs[left].0.0.get_nibble(depth);
                 let child_node_key = node_key.gen_child_node_key(version, child_index);
                 let (new_child_node_key, new_child_node) = if existing_leaf_bucket == child_index {
                     isolated_existing_leaf = false;
@@ -300,6 +305,7 @@ where
         }
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     fn batch_create_subtree(
         &self,
         node_key: NodeKey,
@@ -316,7 +322,7 @@ where
         } else {
             let mut children = Children::new();
             for (left, right) in NibbleRangeIterator::new(kvs, depth) {
-                let child_index = kvs[left].0 .0.get_nibble(depth);
+                let child_index = kvs[left].0.0.get_nibble(depth);
                 let child_node_key = node_key.gen_child_node_key(version, child_index);
                 let (new_child_node_key, new_child_node) = self.batch_create_subtree(
                     child_node_key,
@@ -489,7 +495,7 @@ where
         &self,
         value_sets: impl IntoIterator<Item = impl IntoIterator<Item = (KeyHash, Option<OwnedValue>)>>,
         first_version: Version,
-    ) -> Result<(Vec<(RootHash, UpdateMerkleProof<H>)>, TreeUpdateBatch)> {
+    ) -> Result<(RootProofs<H>, TreeUpdateBatch)> {
         let mut tree_cache = TreeCache::new(self.reader, first_version)?;
         let mut batch_proofs = Vec::new();
         for (idx, value_set) in value_sets.into_iter().enumerate() {
@@ -520,10 +526,7 @@ where
 
         let (root_hashes, update_batch): (Vec<RootHash>, TreeUpdateBatch) = tree_cache.into();
 
-        let zipped_hashes_proofs = root_hashes
-            .into_iter()
-            .zip(batch_proofs)
-            .collect();
+        let zipped_hashes_proofs = root_hashes.into_iter().zip(batch_proofs).collect();
 
         Ok((zipped_hashes_proofs, update_batch))
     }
@@ -585,7 +588,7 @@ where
         value: Option<ValueHash>,
         tree_cache: &mut TreeCache<R>,
         with_proof: bool,
-    ) -> Result<(PutResult<(NodeKey, Node)>, Option<SparseMerkleProof<H>>)> {
+    ) -> PutOutcome<H> {
         // Because deletions could cause the root node not to exist, we try to get the root node,
         // and if it doesn't exist, we synthesize a `Null` node, noting that it hasn't yet been
         // committed anywhere (we need to track this because the tree cache will panic if we try to
@@ -654,6 +657,7 @@ where
     /// Helper function for recursive insertion into the subtree that starts from the current
     /// `internal_node`. Returns the newly inserted node with its
     /// [`NodeKey`](node_type/struct.NodeKey.html).
+    #[allow(clippy::too_many_arguments)]
     fn insert_at_internal_node(
         &self,
         mut node_key: NodeKey,
@@ -663,7 +667,7 @@ where
         value: Option<ValueHash>,
         tree_cache: &mut TreeCache<R>,
         with_proof: bool,
-    ) -> Result<(PutResult<(NodeKey, Node)>, Option<SparseMerkleProof<H>>)> {
+    ) -> PutOutcome<H> {
         // Find the next node to visit following the next nibble as index.
         let child_index = nibble_iter.next().expect("Ran out of nibbles");
 
@@ -824,6 +828,7 @@ where
     /// Helper function for recursive insertion into the subtree that starts from the
     /// `existing_leaf_node`. Returns the newly inserted node with its
     /// [`NodeKey`](node_type/struct.NodeKey.html).
+    #[allow(clippy::too_many_arguments)]
     fn insert_at_leaf_node(
         &self,
         /* the root of the subtree we are inserting into */
@@ -836,7 +841,7 @@ where
         value_hash: Option<ValueHash>,
         tree_cache: &mut TreeCache<R>,
         with_proof: bool,
-    ) -> Result<(PutResult<(NodeKey, Node)>, Option<SparseMerkleProof<H>>)> {
+    ) -> PutOutcome<H> {
         // We are inserting a new key that shares a common prefix with the existing leaf node.
         // This check is to make sure that the visited nibble path of the inserted key is a
         // subpath of the existing leaf node's nibble path.
@@ -1051,7 +1056,7 @@ where
                                     siblings.reverse();
                                     siblings
                                 }),
-                            ))
+                            ));
                         }
                     };
                 }
@@ -1239,7 +1244,9 @@ where
                         Ok((rightmost_left_keyhash, Some(leaf_hash)))
                     }
                     Ordering::Equal => {
-                        bail!("found exact key when searching for bounding path for nonexistence proof")
+                        bail!(
+                            "found exact key when searching for bounding path for nonexistence proof"
+                        )
                     }
                 }
             }
@@ -1270,7 +1277,7 @@ where
         &self,
         key_hash: KeyHash,
         version: Version,
-    ) -> Result<Result<(OwnedValue, SparseMerkleProof<H>), ExclusionProof<H>>> {
+    ) -> Result<ProofQueryResult<H>> {
         // Optimistically attempt get_with_proof, if that succeeds, we're done.
         if let (Some(value), proof) = self.get_with_proof(key_hash, version)? {
             return Ok(Ok((value, proof)));
@@ -1377,11 +1384,7 @@ where
             .zip(rightmost_key_to_prove.0.iter_bits())
             .filter_map(|(sibling, bit)| {
                 // We only need to keep the siblings on the right.
-                if !bit {
-                    Some(*sibling)
-                } else {
-                    None
-                }
+                if !bit { Some(*sibling) } else { None }
             })
             .rev()
             .collect();

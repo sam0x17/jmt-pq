@@ -3,12 +3,12 @@ use alloc::vec::Vec;
 use anyhow::Result;
 
 use crate::{
-    proof::{SparseMerkleProof, INTERNAL_DOMAIN_SEPARATOR, LEAF_DOMAIN_SEPARATOR},
+    JellyfishMerkleTree, KeyHash, OwnedValue, SPARSE_MERKLE_PLACEHOLDER_HASH, SimpleHasher,
+    Version,
+    proof::{INTERNAL_DOMAIN_SEPARATOR, LEAF_DOMAIN_SEPARATOR, SparseMerkleProof},
     storage::HasPreimage,
     storage::TreeReader,
     tree::ExclusionProof,
-    JellyfishMerkleTree, KeyHash, OwnedValue, SimpleHasher, Version,
-    SPARSE_MERKLE_PLACEHOLDER_HASH,
 };
 
 fn sparse_merkle_proof_to_ics23_existence_proof<H: SimpleHasher>(
@@ -253,13 +253,13 @@ pub fn ics23_spec() -> ics23::ProofSpec {
 #[cfg(test)]
 mod tests {
     use alloc::format;
-    use ics23::{commitment_proof::Proof, HostFunctionsManager, NonExistenceProof};
+    use ics23::{HostFunctionsManager, NonExistenceProof, commitment_proof::Proof};
     use proptest::prelude::*;
     use proptest::strategy::Strategy;
     use sha2::Sha256;
 
     use super::*;
-    use crate::{mock::MockTreeStore, KeyHash, TransparentHasher, SPARSE_MERKLE_PLACEHOLDER_HASH};
+    use crate::{KeyHash, SPARSE_MERKLE_PLACEHOLDER_HASH, TransparentHasher, mock::MockTreeStore};
 
     proptest! {
          #![proptest_config(ProptestConfig {
@@ -292,7 +292,7 @@ mod tests {
              preimages.sort();
              preimages.dedup();
 
-           assert!(preimages.len() > 0);
+           assert!(!preimages.is_empty());
 
            let store = MockTreeStore::default();
            let tree = JellyfishMerkleTree::<_, TransparentHasher>::new(&store);
@@ -300,7 +300,10 @@ mod tests {
            // Our key preimages and key hashes are identical, but we still need to populate
            // the mock store so that ics23 internal queries can resolve.
            for preimage in preimages.iter() {
-             store.put_key_preimage(KeyHash::with::<TransparentHasher>(preimage.clone()), preimage.clone().as_bytes().to_vec().as_ref());
+             store.put_key_preimage(
+                 KeyHash::with::<TransparentHasher>(preimage.clone()),
+                 preimage.as_bytes(),
+             );
            }
 
            let (_, write_batch) = tree.put_value_set(
@@ -363,7 +366,7 @@ mod tests {
 
      #[test]
     fn test_jmt_ics23_nonexistence(keys: Vec<Vec<u8>>) {
-     test_jmt_ics23_nonexistence_with_keys(keys.into_iter().filter(|k| k.len() != 0));
+     test_jmt_ics23_nonexistence_with_keys(keys.into_iter().filter(|k| !k.is_empty()));
      }
      }
 
@@ -371,8 +374,8 @@ mod tests {
         proptest::collection::btree_set(u64::MAX as u128..=u128::MAX, 200)
             .prop_map(|set| set.into_iter().collect())
     }
-    fn generate_adjacent_keys(hex: &String) -> (String, String) {
-        let value = u128::from_str_radix(hex.as_str(), 16).expect("valid hexstring");
+    fn generate_adjacent_keys(hex: &str) -> (String, String) {
+        let value = u128::from_str_radix(hex, 16).expect("valid hexstring");
         let prev = value - 1;
         let next = value + 1;
         let p = format!("{prev:032x}");
@@ -388,7 +391,7 @@ mod tests {
 
         // Ensure that the tree contains at least one key-value pair
         kvs.push((KeyHash::with::<Sha256>(b"key"), Some(b"value1".to_vec())));
-        db.put_key_preimage(KeyHash::with::<Sha256>(b"key"), &b"key".to_vec());
+        db.put_key_preimage(KeyHash::with::<Sha256>(b"key"), b"key");
 
         for key_preimage in keys {
             // Since we hardcode the check for key, ensure that it's not inserted randomly by proptest
@@ -398,7 +401,7 @@ mod tests {
             let key_hash = KeyHash::with::<Sha256>(key_preimage.as_slice());
             let value = vec![0u8; 32];
             kvs.push((key_hash, Some(value)));
-            db.put_key_preimage(key_hash, &key_preimage.to_vec());
+            db.put_key_preimage(key_hash, key_preimage.as_slice());
         }
 
         let (new_root_hash, batch) = tree.put_value_set(kvs, 0).unwrap();
@@ -589,7 +592,7 @@ mod tests {
             let values = vec![value];
             let value_set = keys
                 .into_iter()
-                .zip(values.into_iter())
+                .zip(values)
                 .map(|(k, v)| (KeyHash::with::<Sha256>(&k), Some(v)))
                 .collect::<Vec<_>>();
             let key_hash = KeyHash::with::<Sha256>(&key);
@@ -600,7 +603,7 @@ mod tests {
                 .expect("can insert node batch");
         }
         let (_value_retrieved, _commitment_proof) = tree
-            .get_with_ics23_proof(format!("does_not_exist").into_bytes(), MAX_VERSION)
+            .get_with_ics23_proof(b"does_not_exist".to_vec(), MAX_VERSION)
             .unwrap();
     }
 
@@ -623,7 +626,7 @@ mod tests {
             let values = vec![value];
             let value_set = keys
                 .into_iter()
-                .zip(values.into_iter())
+                .zip(values)
                 .map(|(k, v)| (KeyHash::with::<Sha256>(&k), Some(v)))
                 .collect::<Vec<_>>();
             let key_hash = KeyHash::with::<Sha256>(&key);
@@ -636,7 +639,7 @@ mod tests {
 
         for version in 0..=MAX_VERSION {
             let (_value_retrieved, _commitment_proof) = tree
-                .get_with_ics23_proof(format!("does_not_exist").into_bytes(), version)
+                .get_with_ics23_proof(b"does_not_exist".to_vec(), version)
                 .unwrap();
         }
     }
@@ -651,7 +654,7 @@ mod tests {
 
         const MAX_VERSION: u64 = 4;
 
-        let mock_keys_str = vec![
+        let mock_keys_str = [
             prefix_pad("a0"),
             prefix_pad("b1"),
             prefix_pad("c2"),
@@ -660,18 +663,18 @@ mod tests {
         ];
 
         for version in 0..=MAX_VERSION {
-            let key = mock_keys_str[version as usize].clone();
+            let key = mock_keys_str[version as usize];
             let key_hash = KeyHash::with::<TransparentHasher>(&key);
             let value_str = format!("value-{}", version);
             let value = value_str.clone().into_bytes();
-            let keys = vec![key.clone()];
+            let keys = vec![key];
             let values = vec![value];
             let value_set = keys
                 .into_iter()
-                .zip(values.into_iter())
+                .zip(values)
                 .map(|(k, v)| (KeyHash::with::<TransparentHasher>(&k), Some(v)))
                 .collect::<Vec<_>>();
-            db.put_key_preimage(key_hash, &key.to_vec());
+            db.put_key_preimage(key_hash, key.as_ref());
             let (_root, batch) = tree.put_value_set(value_set, version).unwrap();
             db.write_tree_update_batch(batch)
                 .expect("can insert node batch");

@@ -7,11 +7,11 @@ use proptest::{collection::btree_map, prelude::*};
 use sha2::Sha256;
 
 use crate::{
+    JellyfishMerkleTree, KeyHash, OwnedValue, RootHash, SimpleHasher, Version,
     mock::MockTreeStore,
     restore::{JellyfishMerkleRestore, StateSnapshotReceiver},
     storage::TreeReader,
     tests::helper::init_mock_db,
-    JellyfishMerkleTree, KeyHash, OwnedValue, RootHash, SimpleHasher, Version,
 };
 
 fn test_restore_with_interruption<H: SimpleHasher>(
