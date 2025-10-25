@@ -16,7 +16,7 @@ use crate::{
 use proptest_derive::Arbitrary;
 
 pub use self::definition::{SparseMerkleProof, SparseMerkleRangeProof, UpdateMerkleProof};
-use crate::{KeyHash, SPARSE_MERKLE_PLACEHOLDER_HASH, ValueHash};
+use crate::{HashBytes, KeyHash, SPARSE_MERKLE_PLACEHOLDER_HASH, ValueHash};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
@@ -45,7 +45,7 @@ pub(crate) enum SparseMerkleNode {
 }
 
 impl SparseMerkleNode {
-    pub(crate) fn hash<H: SimpleHasher>(&self) -> [u8; 32] {
+    pub(crate) fn hash<H: SimpleHasher>(&self) -> HashBytes {
         match self {
             SparseMerkleNode::Null => SPARSE_MERKLE_PLACEHOLDER_HASH,
             Internal(node) => node.hash::<H>(),
@@ -59,19 +59,21 @@ impl SparseMerkleNode {
 )]
 #[cfg_attr(all(test, feature = "std"), derive(Arbitrary))]
 pub(crate) struct SparseMerkleInternalNode {
-    left_child: [u8; 32],
-    right_child: [u8; 32],
+    #[serde(with = "crate::hash_bytes_serde")]
+    left_child: HashBytes,
+    #[serde(with = "crate::hash_bytes_serde")]
+    right_child: HashBytes,
 }
 
 impl SparseMerkleInternalNode {
-    pub fn new(left_child: [u8; 32], right_child: [u8; 32]) -> Self {
+    pub fn new(left_child: HashBytes, right_child: HashBytes) -> Self {
         Self {
             left_child,
             right_child,
         }
     }
 
-    pub fn hash<H: SimpleHasher>(&self) -> [u8; 32] {
+    pub fn hash<H: SimpleHasher>(&self) -> HashBytes {
         let mut hasher = H::new();
         // chop a vowel to fit in 16 bytes
         hasher.update(INTERNAL_DOMAIN_SEPARATOR);
@@ -144,7 +146,7 @@ impl SparseMerkleLeafNode {
         self.key_hash
     }
 
-    pub(crate) fn hash<H: SimpleHasher>(&self) -> [u8; 32] {
+    pub(crate) fn hash<H: SimpleHasher>(&self) -> HashBytes {
         let mut hasher = H::new();
         hasher.update(LEAF_DOMAIN_SEPARATOR);
         hasher.update(&self.key_hash.0);

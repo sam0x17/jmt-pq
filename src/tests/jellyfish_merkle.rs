@@ -9,7 +9,7 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use crate::SimpleHasher;
 use crate::{
-    JellyfishMerkleTree, KeyHash, MissingRootError, SPARSE_MERKLE_PLACEHOLDER_HASH,
+    HASH_SIZE, JellyfishMerkleTree, KeyHash, MissingRootError, SPARSE_MERKLE_PLACEHOLDER_HASH,
     mock::MockTreeStore,
     node_type::{Child, Children, Node, NodeKey, NodeType},
     storage::{TreeReader, TreeUpdateBatch},
@@ -161,7 +161,7 @@ fn test_insert_at_leaf_with_internal_created<H: SimpleHasher>() {
     let db = MockTreeStore::default();
     let tree = JellyfishMerkleTree::<_, H>::new(&db);
 
-    let key1 = KeyHash([0u8; 32]);
+    let key1 = KeyHash([0u8; HASH_SIZE]);
     let value1 = vec![1u8, 2u8];
 
     let (_root0_hash, batch) = tree
@@ -231,7 +231,7 @@ fn test_insert_at_leaf_with_multiple_internals_created<H: SimpleHasher>() {
     let tree = JellyfishMerkleTree::<_, H>::new(&db);
 
     // 1. Insert the first leaf into empty tree
-    let key1 = KeyHash([0u8; 32]);
+    let key1 = KeyHash([0u8; HASH_SIZE]);
     let value1 = vec![1u8, 2u8];
 
     let (_root0_hash, batch) = tree
@@ -354,7 +354,7 @@ fn test_batch_insertion<H: SimpleHasher>() {
     //
     // Total: 12 nodes
     // ```
-    let key1 = KeyHash([0u8; 32]);
+    let key1 = KeyHash([0u8; HASH_SIZE]);
     let value1 = vec![1u8];
 
     let key2 = update_nibble(&key1, 0, 2);
@@ -522,7 +522,7 @@ fn test_non_existence<H: SimpleHasher>() {
     //               1        3
     // Total: 7 nodes
     // ```
-    let key1 = KeyHash([0u8; 32]);
+    let key1 = KeyHash([0u8; HASH_SIZE]);
     let value1 = vec![1u8];
 
     let key2 = update_nibble(&key1, 0, 15);
@@ -755,8 +755,8 @@ fn test_delete_then_get_in_one<H: SimpleHasher>() {
     let db = MockTreeStore::default();
     let tree = JellyfishMerkleTree::<_, H>::new(&db);
 
-    let key1: KeyHash = KeyHash([1; 32]);
-    let key2: KeyHash = KeyHash([2; 32]);
+    let key1: KeyHash = KeyHash([1; HASH_SIZE]);
+    let key2: KeyHash = KeyHash([2; HASH_SIZE]);
 
     let value = "".to_string().into_bytes();
 
@@ -773,7 +773,7 @@ fn test_two_gets_then_delete<H: SimpleHasher>() {
     let db = MockTreeStore::default();
     let tree = JellyfishMerkleTree::<_, H>::new(&db);
 
-    let key1: KeyHash = KeyHash([1; 32]);
+    let key1: KeyHash = KeyHash([1; HASH_SIZE]);
 
     let value = "".to_string().into_bytes();
 
@@ -791,8 +791,8 @@ fn test_two_gets_then_delete<H: SimpleHasher>() {
     db.write_tree_update_batch(batch).unwrap();
 }
 
-// Implement the test suite for sha256
-impl_jellyfish_tests_for_hasher!(sha256_tests, sha2::Sha256);
+// Implement the test suite for sha512
+impl_jellyfish_tests_for_hasher!(sha512_tests, sha2::Sha512);
 
 // Optionally implement the test suite for blake3
 #[cfg(feature = "blake3_tests")]

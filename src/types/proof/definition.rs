@@ -6,7 +6,8 @@ use core::marker::PhantomData;
 
 use super::{SparseMerkleInternalNode, SparseMerkleLeafNode, SparseMerkleNode};
 use crate::{
-    Bytes32Ext, KeyHash, RootHash, SPARSE_MERKLE_PLACEHOLDER_HASH, SimpleHasher, ValueHash,
+    Bytes32Ext, HASH_SIZE, HashBytes, KeyHash, RootHash, SPARSE_MERKLE_PLACEHOLDER_HASH,
+    SimpleHasher, ValueHash,
     storage::Node,
     types::nibble::nibble_path::{NibblePath, skip_common_prefix},
 };
@@ -129,9 +130,9 @@ impl<H: SimpleHasher> SparseMerkleProof<H> {
         element_value: Option<V>,
     ) -> Result<()> {
         ensure!(
-            self.siblings.len() <= 256,
+            self.siblings.len() <= HASH_SIZE * 8,
             "Sparse Merkle Tree proof has more than {} ({}) siblings.",
-            256,
+            HASH_SIZE * 8,
             self.siblings.len(),
         );
 
@@ -190,7 +191,7 @@ impl<H: SimpleHasher> SparseMerkleProof<H> {
                     .0
                     .iter_bits()
                     .rev()
-                    .skip(256 - self.siblings.len()),
+                    .skip(HASH_SIZE * 8 - self.siblings.len()),
             )
             .fold(current_hash, |hash, (sibling_node, bit)| {
                 if bit {
@@ -405,7 +406,7 @@ impl<H: SimpleHasher> SparseMerkleProof<H> {
                                         .0
                                         .iter_bits()
                                         .rev()
-                                        .skip(256 - remaining_siblings_len),
+                                        .skip(HASH_SIZE * 8 - remaining_siblings_len),
                                 )
                                 .fold(Node::new_null().hash::<H>(), |hash, (sibling_node, bit)| {
                                     if bit {
@@ -447,7 +448,7 @@ impl<H: SimpleHasher> SparseMerkleProof<H> {
                                         .0
                                         .iter_bits()
                                         .rev()
-                                        .skip(256 - remaining_siblings_len),
+                                        .skip(HASH_SIZE * 8 - remaining_siblings_len),
                                 )
                                 .fold(
                                     next_non_default_sib.hash::<H>(),
@@ -497,7 +498,7 @@ impl<H: SimpleHasher> SparseMerkleProof<H> {
                     .0
                     .iter_bits()
                     .rev()
-                    .skip(256 - self.siblings.len()),
+                    .skip(HASH_SIZE * 8 - self.siblings.len()),
             )
             .fold(current_hash, |hash, (sibling_node, bit)| {
                 if bit {
@@ -653,7 +654,7 @@ impl<H: SimpleHasher> SparseMerkleRangeProof<H> {
         &self,
         expected_root_hash: RootHash,
         rightmost_known_leaf: SparseMerkleLeafNode,
-        left_siblings: Vec<[u8; 32]>,
+        left_siblings: Vec<HashBytes>,
     ) -> Result<()> {
         let num_siblings = left_siblings.len() + self.right_siblings.len();
         let mut left_sibling_iter = left_siblings.iter();
@@ -665,7 +666,7 @@ impl<H: SimpleHasher> SparseMerkleRangeProof<H> {
             .0
             .iter_bits()
             .rev()
-            .skip(256 - num_siblings)
+            .skip(HASH_SIZE * 8 - num_siblings)
         {
             let (left_hash, right_hash) = if bit {
                 (
@@ -703,32 +704,33 @@ mod serialization_tests {
     //! when instantiated with a specific hasher. This is done as a sanity check to ensure the trait bounds inferred by Rustc
     //! are not too restrictive.
 
-    use sha2::Sha256;
+    use sha2::Sha512;
 
     use crate::{
         KeyHash, ValueHash,
         proof::{SparseMerkleInternalNode, SparseMerkleLeafNode, SparseMerkleNode},
+        HASH_SIZE,
     };
 
     use super::{SparseMerkleProof, SparseMerkleRangeProof};
 
-    fn get_test_proof() -> SparseMerkleProof<Sha256> {
+    fn get_test_proof() -> SparseMerkleProof<Sha512> {
         SparseMerkleProof {
             leaf: Some(SparseMerkleLeafNode::new(
-                KeyHash([1u8; 32]),
-                ValueHash([2u8; 32]),
+                KeyHash([1u8; HASH_SIZE]),
+                ValueHash([2u8; HASH_SIZE]),
             )),
             siblings: alloc::vec![SparseMerkleNode::Internal(SparseMerkleInternalNode::new(
-                [3u8; 32], [4u8; 32]
+                [3u8; HASH_SIZE], [4u8; HASH_SIZE]
             ))],
             phantom_hasher: Default::default(),
         }
     }
 
-    fn get_test_range_proof() -> SparseMerkleRangeProof<Sha256> {
+    fn get_test_range_proof() -> SparseMerkleRangeProof<Sha512> {
         SparseMerkleRangeProof {
             right_siblings: alloc::vec![SparseMerkleNode::Internal(SparseMerkleInternalNode::new(
-                [3u8; 32], [4u8; 32]
+                [3u8; HASH_SIZE], [4u8; HASH_SIZE]
             ))],
             _phantom: Default::default(),
         }
@@ -750,7 +752,7 @@ mod serialization_tests {
         let proof = get_test_proof();
         let serialized_proof = borsh::to_vec(&proof).expect("serialization is infallible");
         let deserialized =
-            SparseMerkleProof::<Sha256>::deserialize(&mut serialized_proof.as_slice())
+            SparseMerkleProof::<Sha512>::deserialize(&mut serialized_proof.as_slice())
                 .expect("serialized proof is valid");
 
         assert_eq!(proof, deserialized);
@@ -772,7 +774,7 @@ mod serialization_tests {
         let proof = get_test_range_proof();
         let serialized_proof = borsh::to_vec(&proof).expect("serialization is infallible");
         let deserialized =
-            SparseMerkleRangeProof::<Sha256>::deserialize(&mut serialized_proof.as_slice())
+            SparseMerkleRangeProof::<Sha512>::deserialize(&mut serialized_proof.as_slice())
                 .expect("serialized proof is valid");
 
         assert_eq!(proof, deserialized);

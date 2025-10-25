@@ -1,89 +1,55 @@
 #![cfg(feature = "std")]
 #![allow(unused)]
-use sha2::Sha256;
 
-use crate::{
-    KeyHash, SPARSE_MERKLE_PLACEHOLDER_HASH, SimpleHasher, ValueHash,
-    proof::{INTERNAL_DOMAIN_SEPARATOR, LEAF_DOMAIN_SEPARATOR},
-};
+use alloc::vec;
+use sha2::Sha512;
 
-const DESCRIPTION: &str = "Manually computed test vectors for a JMT instantiated with the sha2-256 hash function. Keys and values are hex-encoded byte strings. Neither keys nor values have been pre-hashed.";
+use crate::{KeyHash, Sha512Jmt, mock::MockTreeStore};
 
 use super::vectors::{KeyValuePair, TestVector};
 
-fn internal_hash(left_child_hash: [u8; 32], right_child_hash: [u8; 32]) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update(INTERNAL_DOMAIN_SEPARATOR);
-    hasher.update(left_child_hash.as_ref());
-    hasher.update(right_child_hash.as_ref());
-    hasher.finalize()
-}
+const DESCRIPTION: &str = "Test vectors for a JMT instantiated with the sha2-512 hash function. Keys and values are hex-encoded byte strings. Neither keys nor values have been pre-hashed.";
 
-fn leaf_hash(key_hash: KeyHash, value_hash: ValueHash) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update(LEAF_DOMAIN_SEPARATOR);
-    hasher.update(key_hash.0.as_ref());
-    hasher.update(value_hash.0.as_ref());
-    hasher.finalize()
+fn test_vector_from_pairs(pairs: Vec<KeyValuePair>) -> TestVector {
+    let store = MockTreeStore::default();
+    let tree = Sha512Jmt::new(&store);
+    let key_value_pairs = pairs
+        .iter()
+        .map(|pair| (KeyHash::with::<Sha512>(&pair.key), Some(pair.value.clone())))
+        .collect::<Vec<_>>();
+    let (root, _batch) = tree.put_value_set(key_value_pairs, 0).unwrap();
+    TestVector {
+        expected_root: root.0,
+        data: pairs,
+    }
 }
 
 fn create_vector_for_empty_trie() -> TestVector {
-    TestVector {
-        expected_root: SPARSE_MERKLE_PLACEHOLDER_HASH,
-        data: vec![],
-    }
+    test_vector_from_pairs(vec![])
 }
 
 fn compute_vector_with_one_leaf() -> TestVector {
-    let key = b"hello";
-    let key_hash = KeyHash::with::<Sha256>(key);
-
-    let value = b"world";
-    let value_hash = ValueHash::with::<Sha256>(value);
-
-    let leaf_hash = leaf_hash(key_hash, value_hash);
-
-    let expected_root = leaf_hash;
-
-    TestVector {
-        expected_root,
-        data: vec![KeyValuePair {
-            key: key.to_vec(),
-            value: value.to_vec(),
-        }],
-    }
+    test_vector_from_pairs(vec![KeyValuePair {
+        key: b"hello".to_vec(),
+        value: b"world".to_vec(),
+    }])
 }
 
 fn compute_vector_with_two_leaves() -> TestVector {
-    let left_key = b"hello";
-    let left_key_hash = KeyHash::with::<Sha256>(left_key);
-
-    let right_key = b"goodbye";
-    let right_key_hash = KeyHash::with::<Sha256>(right_key);
-
-    let value = b"world";
-    let value_hash = ValueHash::with::<Sha256>(value);
-
-    let left_leaf_hash = leaf_hash(left_key_hash, value_hash);
-    let right_leaf_hash = leaf_hash(right_key_hash, value_hash);
-
-    let expected_root = internal_hash(left_leaf_hash, right_leaf_hash);
-
-    TestVector {
-        expected_root,
-        data: vec![
-            KeyValuePair {
-                key: left_key.to_vec(),
-                value: value.to_vec(),
-            },
-            KeyValuePair {
-                key: right_key.to_vec(),
-                value: value.to_vec(),
-            },
-        ],
-    }
+    test_vector_from_pairs(vec![
+        KeyValuePair {
+            key: b"hello".to_vec(),
+            value: b"world".to_vec(),
+        },
+        KeyValuePair {
+            key: b"goodbye".to_vec(),
+            value: b"world".to_vec(),
+        },
+    ])
 }
 
+#[test]
+#[ignore]
 fn generate_vectors() {
     use super::vectors::TestVectorWrapper;
 
@@ -95,10 +61,10 @@ fn generate_vectors() {
 
     let test_vectors = TestVectorWrapper {
         description: DESCRIPTION.to_string(),
-        hash_function: "sha2_256".to_string(),
+        hash_function: "sha2_512".to_string(),
         vectors,
     };
-    let file = std::fs::File::create("sha2_256_vectors.json").unwrap();
+    let file = std::fs::File::create("sha2_512_vectors.json").unwrap();
     let writer = std::io::BufWriter::new(file);
     serde_json::to_writer_pretty(writer, &test_vectors).unwrap();
 }

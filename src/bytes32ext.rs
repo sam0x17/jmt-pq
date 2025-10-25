@@ -2,19 +2,20 @@
 
 use core::ops::Index;
 
+use crate::{HashBytes, HASH_SIZE};
 use mirai_annotations::*;
 
 pub trait Bytes32Ext: Index<usize> + Sized {
     /// Returns the `index`-th nibble.
     fn get_nibble(&self, index: usize) -> crate::types::nibble::Nibble;
     /// Returns the length of common prefix of `self` and `other` in bits.
-    fn common_prefix_bits_len(&self, other: &[u8; 32]) -> usize;
+    fn common_prefix_bits_len(&self, other: &HashBytes) -> usize;
     /// Returns a `HashValueBitIterator` over all the bits that represent this hash value.
     fn iter_bits(&self) -> HashValueBitIterator<'_>;
     /// Returns the `index`-th nibble in the bytes.
     fn nibble(&self, index: usize) -> u8;
     /// Returns the length of common prefix of `self` and `other` in nibbles.
-    fn common_prefix_nibbles_len(&self, other: &[u8; 32]) -> usize {
+    fn common_prefix_nibbles_len(&self, other: &HashBytes) -> usize {
         self.common_prefix_bits_len(other) / 4
     }
     /// Constructs a `HashValue` from an iterator of bits.
@@ -22,7 +23,7 @@ pub trait Bytes32Ext: Index<usize> + Sized {
     fn from_bit_iter(iter: impl ExactSizeIterator<Item = bool>) -> Option<Self>;
 }
 
-impl Bytes32Ext for [u8; 32] {
+impl Bytes32Ext for HashBytes {
     fn get_nibble(&self, index: usize) -> crate::types::nibble::Nibble {
         crate::types::nibble::Nibble::from(if index.is_multiple_of(2) {
             self[index / 2] >> 4
@@ -31,7 +32,7 @@ impl Bytes32Ext for [u8; 32] {
         })
     }
 
-    fn common_prefix_bits_len(&self, other: &[u8; 32]) -> usize {
+    fn common_prefix_bits_len(&self, other: &HashBytes) -> usize {
         self.iter_bits()
             .zip(other.iter_bits())
             .take_while(|(x, y)| x == y)
@@ -43,7 +44,7 @@ impl Bytes32Ext for [u8; 32] {
     }
 
     fn nibble(&self, index: usize) -> u8 {
-        assume!(index < 32 * 2); // assumed precondition
+        assume!(index < HASH_SIZE * 2); // assumed precondition
         let pos = index / 2;
         let shift = if index.is_multiple_of(2) { 4 } else { 0 };
         (self[pos] >> shift) & 0x0f
@@ -51,11 +52,11 @@ impl Bytes32Ext for [u8; 32] {
 
     /// Constructs a `HashValue` from an iterator of bits.
     fn from_bit_iter(iter: impl ExactSizeIterator<Item = bool>) -> Option<Self> {
-        if iter.len() != 256 {
+        if iter.len() != HASH_SIZE * 8 {
             return None;
         }
 
-        let mut buf = [0; 32];
+        let mut buf = [0; HASH_SIZE];
         for (i, bit) in iter.enumerate() {
             if bit {
                 buf[i / 8] |= 1 << (7 - i % 8);
@@ -76,17 +77,17 @@ pub struct HashValueBitIterator<'a> {
 
 impl<'a> HashValueBitIterator<'a> {
     /// Constructs a new `HashValueBitIterator` using given `HashValue`.
-    fn new(hash_value: &'a [u8; 32]) -> Self {
+    fn new(hash_value: &'a HashBytes) -> Self {
         HashValueBitIterator {
             hash_bytes: hash_value.as_ref(),
-            pos: (0..32 * 8),
+            pos: (0..HASH_SIZE * 8),
         }
     }
 
     /// Returns the `index`-th bit in the bytes.
     fn get_bit(&self, index: usize) -> bool {
         assume!(index < self.pos.end); // assumed precondition
-        assume!(self.hash_bytes.len() == 32); // invariant
+        assume!(self.hash_bytes.len() == HASH_SIZE); // invariant
         assume!(self.pos.end == self.hash_bytes.len() * 8); // invariant
         let pos = index / 8;
         let bit = 7 - index % 8;

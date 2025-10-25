@@ -6,11 +6,13 @@ use alloc::{format, vec};
 
 use anyhow::Result;
 use rand::{Rng, SeedableRng, rngs::StdRng};
-use sha2::Sha256;
+use sha2::Sha512;
+#[cfg(feature = "std")]
+use std::thread;
 
 use super::helper::plus_one;
 use crate::{
-    KeyHash, OwnedValue, Sha256Jmt, iterator::JellyfishMerkleIterator, mock::MockTreeStore,
+    HASH_SIZE, KeyHash, OwnedValue, Sha512Jmt, iterator::JellyfishMerkleIterator, mock::MockTreeStore,
     types::Version,
 };
 
@@ -28,18 +30,32 @@ fn test_iterator_multiple_versions() {
 
 #[test]
 fn test_long_path() {
-    test_n_consecutive_addresses(50);
+    #[cfg(feature = "std")]
+    {
+        thread::Builder::new()
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| test_n_consecutive_addresses(50))
+            .expect("spawn iterator long-path thread")
+            .join()
+            .expect("long-path test panicked");
+    }
+    #[cfg(not(feature = "std"))]
+    {
+        test_n_consecutive_addresses(50);
+    }
 }
 
 fn test_n_leaves_same_version(n: usize) {
     let db = Arc::new(MockTreeStore::default());
-    let tree = Sha256Jmt::new(&*db);
+    let tree = Sha512Jmt::new(&*db);
 
     let mut rng = StdRng::from_seed([1; 32]);
 
     let mut btree = BTreeMap::new();
     for i in 0..n {
-        let key = KeyHash(rng.r#gen());
+        let mut key = [0u8; HASH_SIZE];
+        rng.fill(&mut key);
+        let key = KeyHash(key);
         let value = i.to_be_bytes().to_vec();
         assert_eq!(btree.insert(key, value), None);
     }
@@ -59,11 +75,11 @@ fn test_n_leaves_same_version(n: usize) {
 
 fn test_n_leaves_multiple_versions(n: usize) {
     let db = Arc::new(MockTreeStore::default());
-    let tree = Sha256Jmt::new(&*db);
+    let tree = Sha512Jmt::new(&*db);
 
     let mut btree = BTreeMap::new();
     for i in 0..n {
-        let key = KeyHash::with::<Sha256>(format!("key{}", i));
+        let key = KeyHash::with::<Sha512>(format!("key{}", i));
         let value = i.to_be_bytes().to_vec();
         assert_eq!(btree.insert(key, value.clone()), None);
         let (_root_hash, batch) = tree
@@ -76,12 +92,12 @@ fn test_n_leaves_multiple_versions(n: usize) {
 
 fn test_n_consecutive_addresses(n: usize) {
     let db = Arc::new(MockTreeStore::default());
-    let tree = Sha256Jmt::new(&*db);
+    let tree = Sha512Jmt::new(&*db);
 
     let btree: BTreeMap<_, _> = (0..n)
         .map(|i| {
-            let mut buf = [0u8; 32];
-            buf[24..].copy_from_slice(&(i as u64).to_be_bytes());
+            let mut buf = [0u8; HASH_SIZE];
+            buf[HASH_SIZE - 8..].copy_from_slice(&(i as u64).to_be_bytes());
             (KeyHash(buf), i.to_be_bytes().to_vec())
         })
         .collect();
@@ -100,7 +116,7 @@ fn test_n_consecutive_addresses(n: usize) {
 fn run_tests(db: Arc<MockTreeStore>, btree: &BTreeMap<KeyHash, OwnedValue>, version: Version) {
     {
         let iter =
-            JellyfishMerkleIterator::new(Arc::clone(&db), version, KeyHash([0u8; 32])).unwrap();
+            JellyfishMerkleIterator::new(Arc::clone(&db), version, KeyHash([0u8; HASH_SIZE])).unwrap();
         assert_eq!(
             iter.collect::<Result<Vec<_>>>().unwrap(),
             btree.clone().into_iter().collect::<Vec<_>>(),
@@ -145,7 +161,8 @@ fn run_tests(db: Arc<MockTreeStore>, btree: &BTreeMap<KeyHash, OwnedValue>, vers
 
     {
         let iter =
-            JellyfishMerkleIterator::new(Arc::clone(&db), version, KeyHash([0xFF; 32])).unwrap();
+            JellyfishMerkleIterator::new(Arc::clone(&db), version, KeyHash([0xFF; HASH_SIZE]))
+                .unwrap();
         assert_eq!(iter.collect::<Result<Vec<_>>>().unwrap(), vec![]);
     }
 }

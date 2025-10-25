@@ -11,7 +11,7 @@
 //! return a new root hash with a [`TreeUpdateBatch`] containing all the new nodes and indices of
 //! stale nodes.
 //!
-//! A Jellyfish Merkle Tree itself logically is a 256-bit sparse Merkle tree with an optimization
+//! A Jellyfish Merkle Tree itself logically is a 512-bit sparse Merkle tree with an optimization
 //! that any subtree containing 0 or 1 leaf node will be replaced by that leaf node or a placeholder
 //! node with default hash value. With this optimization we can save CPU by avoiding hashing on
 //! many sparse levels in the tree. Physically, the tree is structurally similar to the modified
@@ -73,7 +73,7 @@ extern crate alloc;
 
 use core::fmt::Debug;
 
-use digest::{Digest, consts::U32};
+use digest::{Digest, consts::U64};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "std")]
 use thiserror::Error;
@@ -87,6 +87,48 @@ mod tree_cache;
 mod types;
 mod writer;
 
+pub(crate) mod hash_bytes_serde {
+    use super::{HashBytes, HASH_SIZE};
+    use alloc::vec::Vec;
+    use core::fmt;
+    use serde::de::{Error as DeError, Expected};
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    struct ExpectedLength;
+
+    impl Expected for ExpectedLength {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "an array of length {}", HASH_SIZE)
+        }
+    }
+
+    impl fmt::Debug for ExpectedLength {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            Expected::fmt(self, f)
+        }
+    }
+
+    pub fn serialize<S>(bytes: &HashBytes, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_bytes(bytes)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<HashBytes, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes = Vec::<u8>::deserialize(deserializer)?;
+        if bytes.len() != HASH_SIZE {
+            return Err(DeError::invalid_length(bytes.len(), &ExpectedLength));
+        }
+        let mut arr = [0u8; HASH_SIZE];
+        arr.copy_from_slice(&bytes);
+        Ok(arr)
+    }
+}
+
 #[cfg(any(test, feature = "mocks"))]
 pub mod mock;
 pub mod restore;
@@ -95,13 +137,18 @@ use bytes32ext::Bytes32Ext;
 pub use iterator::JellyfishMerkleIterator;
 pub use tree::JellyfishMerkleTree;
 #[cfg(any(test, feature = "sha2"))]
-pub use tree::Sha256Jmt;
+pub use tree::Sha512Jmt;
 #[cfg(feature = "ics23")]
 pub use tree::ics23_impl::ics23_spec;
 
 pub use types::Version;
 use types::nibble::ROOT_NIBBLE_HEIGHT;
 pub use types::proof;
+
+/// Length in bytes of every hash output used by the Jellyfish Merkle Tree.
+pub const HASH_SIZE: usize = 64;
+/// Convenience alias for hash output bytes.
+pub type HashBytes = [u8; HASH_SIZE];
 
 /// Contains types used to bridge a [`JellyfishMerkleTree`](crate::JellyfishMerkleTree)
 /// to the backing storage recording the tree's internal data.
@@ -144,7 +191,8 @@ impl core::fmt::Display for MissingRootError {
 
 // TODO: reorg
 
-const SPARSE_MERKLE_PLACEHOLDER_HASH: [u8; 32] = *b"SPARSE_MERKLE_PLACEHOLDER_HASH__";
+const SPARSE_MERKLE_PLACEHOLDER_HASH: HashBytes =
+    *b"SPARSE_MERKLE_PLACEHOLDER_HASH__PQ_RESISTANT_PLACEHOLDER_HASH_PQ";
 
 /// An owned value stored in the [`JellyfishMerkleTree`].
 pub type OwnedValue = alloc::vec::Vec<u8>;
@@ -167,16 +215,16 @@ use proptest_derive::Arbitrary;
     borsh::BorshDeserialize,
 )]
 #[cfg_attr(any(test), derive(Arbitrary))]
-pub struct RootHash(pub [u8; 32]);
+pub struct RootHash(#[serde(with = "crate::hash_bytes_serde")] pub HashBytes);
 
-impl From<RootHash> for [u8; 32] {
+impl From<RootHash> for HashBytes {
     fn from(value: RootHash) -> Self {
         value.0
     }
 }
 
-impl From<[u8; 32]> for RootHash {
-    fn from(value: [u8; 32]) -> Self {
+impl From<HashBytes> for RootHash {
+    fn from(value: HashBytes) -> Self {
         Self(value)
     }
 }
@@ -209,7 +257,7 @@ impl AsRef<[u8]> for RootHash {
     borsh::BorshDeserialize,
 )]
 #[cfg_attr(any(test), derive(Arbitrary))]
-pub struct KeyHash(pub [u8; 32]);
+pub struct KeyHash(#[serde(with = "crate::hash_bytes_serde")] pub HashBytes);
 
 #[derive(
     Copy,
@@ -228,7 +276,7 @@ pub struct KeyHash(pub [u8; 32]);
 // This needs to be public for the fuzzing/Arbitrary feature, but we don't
 // really want it to be, so #[doc(hidden)] is the next best thing.
 #[doc(hidden)]
-pub struct ValueHash(pub [u8; 32]);
+pub struct ValueHash(#[serde(with = "crate::hash_bytes_serde")] pub HashBytes);
 
 impl ValueHash {
     pub fn with<H: SimpleHasher>(value: impl AsRef<[u8]>) -> Self {
@@ -313,9 +361,9 @@ pub trait SimpleHasher: Sized {
     /// Ingests the provided data, updating the hasher's state.
     fn update(&mut self, data: &[u8]);
     /// Consumes the hasher state to produce a digest.
-    fn finalize(self) -> [u8; 32];
+    fn finalize(self) -> HashBytes;
     /// Returns the digest of the provided data.
-    fn hash(data: impl AsRef<[u8]>) -> [u8; 32] {
+    fn hash(data: impl AsRef<[u8]>) -> HashBytes {
         let mut hasher = Self::new();
         hasher.update(data.as_ref());
         hasher.finalize()
@@ -324,7 +372,7 @@ pub trait SimpleHasher: Sized {
 
 impl<T> SimpleHasher for T
 where
-    T: Digest<OutputSize = U32>,
+    T: Digest<OutputSize = U64>,
 {
     fn new() -> Self {
         T::new()
@@ -334,9 +382,9 @@ where
         Digest::update(self, data)
     }
 
-    fn finalize(self) -> [u8; 32] {
+    fn finalize(self) -> HashBytes {
         let output = Digest::finalize(self);
-        let mut result = [0u8; 32];
+        let mut result = [0u8; HASH_SIZE];
         for (dest, src) in result.iter_mut().zip(output.iter()) {
             *dest = *src;
         }
@@ -344,16 +392,18 @@ where
     }
 }
 
-/// A trivial implementation of [`SimpleHasher`] that simply returns the first 32 bytes of the
+/// A trivial implementation of [`SimpleHasher`] that simply returns the first 64 bytes of the
 /// provided data. This is useful to avoid hashing data when testing, and facilitate debugging
 /// specific tree configurations.
 pub struct TransparentHasher {
-    key: [u8; 32],
+    key: HashBytes,
 }
 
 impl SimpleHasher for TransparentHasher {
     fn new() -> Self {
-        TransparentHasher { key: [0u8; 32] }
+        TransparentHasher {
+            key: [0u8; HASH_SIZE],
+        }
     }
 
     fn update(&mut self, data: &[u8]) {
@@ -361,7 +411,25 @@ impl SimpleHasher for TransparentHasher {
             *dest = src;
         }
     }
-    fn finalize(self) -> [u8; 32] {
+    fn finalize(self) -> HashBytes {
         self.key
+    }
+}
+
+#[cfg(feature = "blake3_tests")]
+impl SimpleHasher for blake3::Hasher {
+    fn new() -> Self {
+        blake3::Hasher::new()
+    }
+
+    fn update(&mut self, data: &[u8]) {
+        blake3::Hasher::update(self, data);
+    }
+
+    fn finalize(self) -> HashBytes {
+        let mut output = [0u8; HASH_SIZE];
+        let mut reader = self.finalize_xof();
+        reader.fill(&mut output);
+        output
     }
 }

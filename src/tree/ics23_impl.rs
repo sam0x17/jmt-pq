@@ -3,8 +3,8 @@ use alloc::vec::Vec;
 use anyhow::Result;
 
 use crate::{
-    JellyfishMerkleTree, KeyHash, OwnedValue, SPARSE_MERKLE_PLACEHOLDER_HASH, SimpleHasher,
-    Version,
+    HASH_SIZE, JellyfishMerkleTree, KeyHash, OwnedValue,
+    SPARSE_MERKLE_PLACEHOLDER_HASH, SimpleHasher, Version,
     proof::{INTERNAL_DOMAIN_SEPARATOR, LEAF_DOMAIN_SEPARATOR, SparseMerkleProof},
     storage::HasPreimage,
     storage::TreeReader,
@@ -18,10 +18,10 @@ fn sparse_merkle_proof_to_ics23_existence_proof<H: SimpleHasher>(
 ) -> ics23::ExistenceProof {
     let key_hash: KeyHash = KeyHash::with::<H>(key.as_slice());
     let mut path = Vec::new();
-    let mut skip = 256 - proof.siblings().len();
+    let mut skip = HASH_SIZE * 8 - proof.siblings().len();
     let mut sibling_idx = 0;
 
-    for byte_idx in (0..32).rev() {
+    for byte_idx in (0..HASH_SIZE).rev() {
         // The JMT proofs iterate over the bits in MSB order
         for bit_idx in 0..8 {
             if skip > 0 {
@@ -37,7 +37,8 @@ fn sparse_merkle_proof_to_ics23_existence_proof<H: SimpleHasher>(
                     // We want hash( domsep || sibling || current )
                     // so prefix = domsep || sibling
                     //    suffix = (empty)
-                    let mut prefix = Vec::with_capacity(16 + 32);
+                    let mut prefix =
+                        Vec::with_capacity(INTERNAL_DOMAIN_SEPARATOR.len() + HASH_SIZE);
                     prefix.extend_from_slice(INTERNAL_DOMAIN_SEPARATOR);
                     prefix.extend_from_slice(&proof.siblings()[sibling_idx].hash::<H>());
                     (prefix, Vec::new())
@@ -50,7 +51,7 @@ fn sparse_merkle_proof_to_ics23_existence_proof<H: SimpleHasher>(
                     (prefix, suffix)
                 };
                 path.push(ics23::InnerOp {
-                    hash: ics23::HashOp::Sha256.into(),
+                    hash: ics23::HashOp::Sha512.into(),
                     prefix,
                     suffix,
                 });
@@ -64,9 +65,9 @@ fn sparse_merkle_proof_to_ics23_existence_proof<H: SimpleHasher>(
         value,
         path,
         leaf: Some(ics23::LeafOp {
-            hash: ics23::HashOp::Sha256.into(),
-            prehash_key: ics23::HashOp::Sha256.into(),
-            prehash_value: ics23::HashOp::Sha256.into(),
+            hash: ics23::HashOp::Sha512.into(),
+            prehash_key: ics23::HashOp::Sha512.into(),
+            prehash_value: ics23::HashOp::Sha512.into(),
             length: ics23::LengthOp::NoPrefix.into(),
             prefix: LEAF_DOMAIN_SEPARATOR.to_vec(),
         }),
@@ -230,22 +231,22 @@ where
 pub fn ics23_spec() -> ics23::ProofSpec {
     ics23::ProofSpec {
         leaf_spec: Some(ics23::LeafOp {
-            hash: ics23::HashOp::Sha256.into(),
-            prehash_key: ics23::HashOp::Sha256.into(),
-            prehash_value: ics23::HashOp::Sha256.into(),
+            hash: ics23::HashOp::Sha512.into(),
+            prehash_key: ics23::HashOp::Sha512.into(),
+            prehash_value: ics23::HashOp::Sha512.into(),
             length: ics23::LengthOp::NoPrefix.into(),
             prefix: LEAF_DOMAIN_SEPARATOR.to_vec(),
         }),
         inner_spec: Some(ics23::InnerSpec {
-            hash: ics23::HashOp::Sha256.into(),
+            hash: ics23::HashOp::Sha512.into(),
             child_order: vec![0, 1],
             min_prefix_length: INTERNAL_DOMAIN_SEPARATOR.len() as i32,
             max_prefix_length: INTERNAL_DOMAIN_SEPARATOR.len() as i32,
-            child_size: 32,
+            child_size: HASH_SIZE as i32,
             empty_child: SPARSE_MERKLE_PLACEHOLDER_HASH.to_vec(),
         }),
         min_depth: 0,
-        max_depth: 64,
+        max_depth: crate::types::nibble::ROOT_NIBBLE_HEIGHT as i32,
         prehash_key_before_comparison: true,
     }
 }
@@ -256,10 +257,10 @@ mod tests {
     use ics23::{HostFunctionsManager, NonExistenceProof, commitment_proof::Proof};
     use proptest::prelude::*;
     use proptest::strategy::Strategy;
-    use sha2::Sha256;
+    use sha2::Sha512;
 
     use super::*;
-    use crate::{KeyHash, SPARSE_MERKLE_PLACEHOLDER_HASH, TransparentHasher, mock::MockTreeStore};
+    use crate::{HashBytes, KeyHash, SPARSE_MERKLE_PLACEHOLDER_HASH, TransparentHasher, mock::MockTreeStore};
 
     proptest! {
          #![proptest_config(ProptestConfig {
@@ -385,20 +386,24 @@ mod tests {
 
     fn test_jmt_ics23_nonexistence_with_keys(keys: impl Iterator<Item = Vec<u8>>) {
         let db = MockTreeStore::default();
-        let tree = JellyfishMerkleTree::<_, Sha256>::new(&db);
+        let tree = JellyfishMerkleTree::<_, Sha512>::new(&db);
 
         let mut kvs = Vec::new();
 
         // Ensure that the tree contains at least one key-value pair
-        kvs.push((KeyHash::with::<Sha256>(b"key"), Some(b"value1".to_vec())));
-        db.put_key_preimage(KeyHash::with::<Sha256>(b"key"), b"key");
+        kvs.push((KeyHash::with::<Sha512>(b"key"), Some(b"value1".to_vec())));
+        db.put_key_preimage(KeyHash::with::<Sha512>(b"key"), b"key");
 
         for key_preimage in keys {
             // Since we hardcode the check for key, ensure that it's not inserted randomly by proptest
             if key_preimage == b"notexist" {
                 continue;
             }
-            let key_hash = KeyHash::with::<Sha256>(key_preimage.as_slice());
+            assert!(
+                !key_preimage.is_empty(),
+                "ics23 proofs require non-empty key preimages"
+            );
+            let key_hash = KeyHash::with::<Sha512>(key_preimage.as_slice());
             let value = vec![0u8; 32];
             kvs.push((key_hash, Some(value)));
             db.put_key_preimage(key_hash, key_preimage.as_slice());
@@ -410,7 +415,7 @@ mod tests {
         let (value_retrieved, commitment_proof) =
             tree.get_with_ics23_proof(b"notexist".to_vec(), 0).unwrap();
 
-        let key_hash = KeyHash::with::<Sha256>(b"notexist".as_slice());
+        let key_hash = KeyHash::with::<Sha512>(b"notexist".as_slice());
         let proof_or_exclusion = tree.get_with_exclusion_proof(key_hash, 0).unwrap();
 
         use crate::tree::ExclusionProof::{Leftmost, Middle, Rightmost};
@@ -506,17 +511,17 @@ mod tests {
     #[test]
     fn test_jmt_ics23_existence() {
         let db = MockTreeStore::default();
-        let tree = JellyfishMerkleTree::<_, Sha256>::new(&db);
+        let tree = JellyfishMerkleTree::<_, Sha512>::new(&db);
 
         let key = b"key";
-        let key_hash = KeyHash::with::<Sha256>(&key);
+        let key_hash = KeyHash::with::<Sha512>(&key);
 
         // For testing, insert multiple values into the tree
         let mut kvs = Vec::new();
         kvs.push((key_hash, Some(b"value".to_vec())));
         // make sure we have some sibling nodes, through carefully constructed k/v entries that will have overlapping paths
         for i in 1..4 {
-            let mut overlap_key = KeyHash([0; 32]);
+            let mut overlap_key = KeyHash([0; HASH_SIZE]);
             overlap_key.0[0..i].copy_from_slice(&key_hash.0[0..i]);
             kvs.push((overlap_key, Some(b"bogus value".to_vec())));
         }
@@ -541,7 +546,7 @@ mod tests {
     #[test]
     fn test_jmt_ics23_existence_random_keys() {
         let db = MockTreeStore::default();
-        let tree = JellyfishMerkleTree::<_, Sha256>::new(&db);
+        let tree = JellyfishMerkleTree::<_, Sha512>::new(&db);
 
         const MAX_VERSION: u64 = 1 << 14;
 
@@ -549,7 +554,7 @@ mod tests {
             let key = format!("key{}", version).into_bytes();
             let value = format!("value{}", version).into_bytes();
             let (_root, batch) = tree
-                .put_value_set(vec![(KeyHash::with::<Sha256>(key), Some(value))], version)
+                .put_value_set(vec![(KeyHash::with::<Sha512>(key), Some(value))], version)
                 .unwrap();
             db.write_tree_update_batch(batch).unwrap();
         }
@@ -577,9 +582,9 @@ mod tests {
     /// Write four keys into the JMT, and query an ICS23 proof for a nonexistent
     /// key. This reproduces a bug that was fixed in release `0.8.0`
     fn test_jmt_ics23_nonexistence_simple() {
-        use crate::Sha256Jmt;
+        use crate::Sha512Jmt;
         let db = MockTreeStore::default();
-        let tree = Sha256Jmt::new(&db);
+        let tree = Sha512Jmt::new(&db);
 
         const MAX_VERSION: u64 = 3;
 
@@ -593,9 +598,9 @@ mod tests {
             let value_set = keys
                 .into_iter()
                 .zip(values)
-                .map(|(k, v)| (KeyHash::with::<Sha256>(&k), Some(v)))
+                .map(|(k, v)| (KeyHash::with::<Sha512>(&k), Some(v)))
                 .collect::<Vec<_>>();
-            let key_hash = KeyHash::with::<Sha256>(&key);
+            let key_hash = KeyHash::with::<Sha512>(&key);
 
             db.put_key_preimage(key_hash, &key);
             let (_root, batch) = tree.put_value_set(value_set, version).unwrap();
@@ -611,9 +616,9 @@ mod tests {
     /// Write four keys into the JMT, and query an ICS23 proof for a nonexistent
     /// key. This reproduces a bug that was fixed in release `0.8.0`
     fn test_jmt_ics23_nonexistence_simple_large() {
-        use crate::Sha256Jmt;
+        use crate::Sha512Jmt;
         let db = MockTreeStore::default();
-        let tree = Sha256Jmt::new(&db);
+        let tree = Sha512Jmt::new(&db);
 
         const MAX_VERSION: u64 = 100;
 
@@ -627,9 +632,9 @@ mod tests {
             let value_set = keys
                 .into_iter()
                 .zip(values)
-                .map(|(k, v)| (KeyHash::with::<Sha256>(&k), Some(v)))
+                .map(|(k, v)| (KeyHash::with::<Sha512>(&k), Some(v)))
                 .collect::<Vec<_>>();
-            let key_hash = KeyHash::with::<Sha256>(&key);
+            let key_hash = KeyHash::with::<Sha512>(&key);
 
             db.put_key_preimage(key_hash, &key);
             let (_root, batch) = tree.put_value_set(value_set, version).unwrap();
@@ -689,9 +694,9 @@ mod tests {
     /// Takes an hexadecimal prefix string (e.g "deadbeef") and returns a padded byte string
     /// that encodes to the padded hexadecimal string (e.g. "deadbeef0....0")
     /// This is useful to create keys with specific hexadecimal representations.
-    fn prefix_pad(hex_str: &str) -> [u8; 32] {
-        if hex_str.len() > 64 {
-            panic!("hexadecimal string is longer than 32 bytes when decoded");
+    fn prefix_pad(hex_str: &str) -> HashBytes {
+        if hex_str.len() > HASH_SIZE * 2 {
+            panic!("hexadecimal string is longer than {} bytes when decoded", HASH_SIZE);
         }
 
         let mut bytes = Vec::with_capacity(hex_str.len() / 2);
@@ -701,7 +706,7 @@ mod tests {
             bytes.push(byte);
         }
 
-        let mut padded_bytes = [0u8; 32];
+        let mut padded_bytes = [0u8; HASH_SIZE];
         padded_bytes[..bytes.len()].copy_from_slice(&bytes);
 
         padded_bytes

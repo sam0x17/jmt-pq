@@ -17,8 +17,8 @@ use anyhow::{Result, bail, ensure};
 use mirai_annotations::*;
 
 use crate::{
-    Bytes32Ext, KeyHash, OwnedValue, ROOT_NIBBLE_HEIGHT, RootHash, SPARSE_MERKLE_PLACEHOLDER_HASH,
-    SimpleHasher, ValueHash,
+    Bytes32Ext, HashBytes, KeyHash, OwnedValue, ROOT_NIBBLE_HEIGHT, RootHash,
+    SPARSE_MERKLE_PLACEHOLDER_HASH, SimpleHasher, ValueHash,
     node_type::{
         Child, Children, InternalNode, LeafNode, Node, NodeKey, NodeType,
         get_child_and_sibling_half_start,
@@ -40,7 +40,7 @@ enum ChildInfo {
     /// known, otherwise it is `None`. In the process of restoring a tree, we will only know the
     /// hash of an internal node after we see all the keys that share the same prefix.
     Internal {
-        hash: Option<[u8; 32]>,
+        hash: Option<HashBytes>,
         leaf_count: usize,
     },
 
@@ -607,7 +607,7 @@ impl<H: SimpleHasher> JellyfishMerkleRestore<H> {
     }
 
     /// Computes the sibling on the left for the `n`-th child.
-    fn compute_left_sibling(partial_node: &InternalInfo, n: Nibble, height: u8) -> [u8; 32] {
+    fn compute_left_sibling(partial_node: &InternalInfo, n: Nibble, height: u8) -> HashBytes {
         assert!(height < 4);
         let width = 1usize << height;
         let start = get_child_and_sibling_half_start(n, height).1 as usize;
@@ -615,7 +615,7 @@ impl<H: SimpleHasher> JellyfishMerkleRestore<H> {
     }
 
     /// Returns the hash for given portion of the subtree and whether this part is a leaf node.
-    fn compute_left_sibling_impl(children: &[Option<ChildInfo>]) -> ([u8; 32], bool) {
+    fn compute_left_sibling_impl(children: &[Option<ChildInfo>]) -> (HashBytes, bool) {
         assert!(!children.is_empty());
 
         let num_children = children.len();

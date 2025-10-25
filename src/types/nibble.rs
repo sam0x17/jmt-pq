@@ -13,10 +13,10 @@ use core::fmt;
 use proptest::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{Bytes32Ext, KeyHash, ValueHash};
+use crate::{Bytes32Ext, HASH_SIZE, KeyHash, ValueHash};
 
 /// The hardcoded maximum height of a state merkle tree in nibbles.
-pub const ROOT_NIBBLE_HEIGHT: usize = 32 * 2;
+pub const ROOT_NIBBLE_HEIGHT: usize = HASH_SIZE * 2;
 
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct Nibble(u8);

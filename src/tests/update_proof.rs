@@ -4,10 +4,10 @@ use alloc::vec;
 use alloc::vec::Vec;
 use proptest::{proptest, strategy::Strategy};
 use rand::{Rng, SeedableRng, rngs::StdRng};
-use sha2::Sha256;
+use sha2::Sha512;
 
 use crate::{
-    JellyfishMerkleTree, KeyHash, RootHash, Sha256Jmt, Version,
+    HASH_SIZE, JellyfishMerkleTree, KeyHash, RootHash, Sha512Jmt, Version,
     mock::MockTreeStore,
     storage::Node,
     tests::helper::{
@@ -31,7 +31,7 @@ fn insert_and_perform_checks(batches: Vec<Vec<(KeyHash, Option<Vec<u8>>)>>) {
     let one_batch = batches.iter().flatten().cloned().collect::<Vec<_>>();
     // Insert as one batch and update one by one.
     let db = MockTreeStore::default();
-    let tree: JellyfishMerkleTree<MockTreeStore, Sha256> = JellyfishMerkleTree::new(&db);
+    let tree: JellyfishMerkleTree<MockTreeStore, Sha512> = JellyfishMerkleTree::new(&db);
 
     let (root, proof, batch) = tree
         .put_value_set_with_proof(one_batch.clone(), 0 /* version */)
@@ -40,7 +40,7 @@ fn insert_and_perform_checks(batches: Vec<Vec<(KeyHash, Option<Vec<u8>>)>>) {
 
     assert!(
         proof
-            .verify_update(RootHash(Node::new_null().hash::<Sha256>()), root, one_batch)
+            .verify_update(RootHash(Node::new_null().hash::<Sha512>()), root, one_batch)
             .is_ok()
     );
 }
@@ -49,7 +49,7 @@ fn insert_and_perform_checks(batches: Vec<Vec<(KeyHash, Option<Vec<u8>>)>>) {
 #[test]
 fn test_update_proof() {
     let db = MockTreeStore::default();
-    let tree = Sha256Jmt::new(&db);
+    let tree = Sha512Jmt::new(&db);
     // ```text
     //                     internal(root)
     //                    /        \
@@ -60,7 +60,7 @@ fn test_update_proof() {
     //               1        3
     // Total: 6 nodes
     // ```
-    let key1 = KeyHash([0u8; 32]);
+    let key1 = KeyHash([0u8; HASH_SIZE]);
     let value1 = vec![1u8];
 
     let key2 = update_nibble(&key1, 0, 15);
@@ -94,7 +94,7 @@ fn test_update_proof() {
     assert!(
         proof1
             .verify_update(
-                RootHash(Node::new_null().hash::<Sha256>()),
+                RootHash(Node::new_null().hash::<Sha512>()),
                 root_hash1,
                 &value_sets[0]
             )
@@ -124,7 +124,7 @@ fn test_prove_multiple_insertions() {
     //               1        3
     // Total: 6 nodes
     // ```
-    let key1 = KeyHash([0u8; 32]);
+    let key1 = KeyHash([0u8; HASH_SIZE]);
     let value1 = vec![1u8];
 
     let key2 = update_nibble(&key1, 0, 2);
@@ -161,7 +161,7 @@ fn test_prove_complex_insertion() {
     //
     // Total: 12 nodes
     // ```
-    let key1 = KeyHash([0u8; 32]);
+    let key1 = KeyHash([0u8; HASH_SIZE]);
     let value1 = vec![1u8];
 
     let key2 = update_nibble(&key1, 0, 2);
@@ -204,7 +204,7 @@ fn test_prove_insertion_separate() {
     //
     // Total: 4 nodes
     // ```
-    let key1 = KeyHash([0u8; 32]);
+    let key1 = KeyHash([0u8; HASH_SIZE]);
     let value1 = vec![1u8];
 
     let key2 = update_nibble(&key1, 0, 2);
@@ -246,7 +246,7 @@ fn test_prove_update() {
     //
     // Total: 12 nodes
     // ```
-    let key1 = KeyHash([0u8; 32]);
+    let key1 = KeyHash([0u8; HASH_SIZE]);
     let value1 = vec![1u8];
 
     let key2 = update_nibble(&key1, 0, 2);
@@ -291,7 +291,7 @@ fn test_delete_simple() {
     //
     // Total: 2 nodes
     // ```
-    let key1 = KeyHash([0u8; 32]);
+    let key1 = KeyHash([0u8; HASH_SIZE]);
     let value1 = vec![1u8];
 
     let key2 = update_nibble(&key1, 0, 2);
@@ -317,7 +317,7 @@ fn test_delete_simple2() {
     //
     // Total: 12 nodes
     // ```
-    let key1 = KeyHash([0u8; 32]);
+    let key1 = KeyHash([0u8; HASH_SIZE]);
     let value1 = vec![1u8];
 
     let key2 = update_nibble(&key1, 0, 2);
@@ -358,7 +358,7 @@ fn test_delete_complex() {
     //
     // Total: 12 nodes, we delete all the nodes one after the other
     // ```
-    let key1 = KeyHash([0u8; 32]);
+    let key1 = KeyHash([0u8; HASH_SIZE]);
     let value1 = vec![1u8];
 
     let key2 = update_nibble(&key1, 0, 2);
@@ -397,7 +397,7 @@ fn test_delete_complex() {
 #[test]
 // Deletes an empty tree
 fn test_delete_empty() {
-    let key1 = KeyHash([0u8; 32]);
+    let key1 = KeyHash([0u8; HASH_SIZE]);
 
     let batches = vec![vec![(key1, None)]];
 
@@ -407,7 +407,7 @@ fn test_delete_empty() {
 #[test]
 // Deletes a key twice, reinserts it and deletes it again
 fn test_delete_key_twice() {
-    let key1 = KeyHash([10u8; 32]);
+    let key1 = KeyHash([10u8; HASH_SIZE]);
 
     let batches = vec![
         vec![(key1, Some(Vec::from([10_u8])))],
@@ -431,19 +431,19 @@ fn test_delete_with_internal_sibling() {
     // Total
     // ```text
     let batch = vec![
-        vec![(KeyHash([176_u8; 32]), Some(vec![2]))],
+        vec![(KeyHash([176_u8; HASH_SIZE]), Some(vec![2]))],
         vec![
-            (KeyHash([160_u8; 32]), Some(vec![1])),
+            (KeyHash([160_u8; HASH_SIZE]), Some(vec![1])),
             (
                 KeyHash({
-                    let mut key = [160_u8; 32];
+                    let mut key = [160_u8; HASH_SIZE];
                     key[1] = 16;
                     key
                 }),
                 Some(vec![1]),
             ),
         ],
-        vec![(KeyHash([176_u8; 32]), None)],
+        vec![(KeyHash([176_u8; HASH_SIZE]), None)],
     ];
 
     insert_and_perform_checks(batch);
@@ -452,10 +452,10 @@ fn test_delete_with_internal_sibling() {
 #[test]
 fn test_multi_deletes_after_inserts() {
     let batches = vec![vec![
-        (KeyHash([7_u8; 32]), Some(Vec::from([10_u8]))),
-        (KeyHash([10_u8; 32]), Some(Vec::from([10_u8]))),
-        (KeyHash([10_u8; 32]), None),
-        (KeyHash([10_u8; 32]), None),
+        (KeyHash([7_u8; HASH_SIZE]), Some(Vec::from([10_u8]))),
+        (KeyHash([10_u8; HASH_SIZE]), Some(Vec::from([10_u8]))),
+        (KeyHash([10_u8; HASH_SIZE]), None),
+        (KeyHash([10_u8; HASH_SIZE]), None),
     ]];
     insert_and_perform_checks(batches);
 }
@@ -463,9 +463,9 @@ fn test_multi_deletes_after_inserts() {
 #[test]
 fn test_gets_then_delete_with_proof() {
     let db = MockTreeStore::default();
-    let tree = Sha256Jmt::new(&db);
+    let tree = Sha512Jmt::new(&db);
 
-    let key1: KeyHash = KeyHash([1; 32]);
+    let key1: KeyHash = KeyHash([1; HASH_SIZE]);
 
     let value = "".to_string().into_bytes();
 
@@ -481,7 +481,7 @@ fn test_gets_then_delete_with_proof() {
     assert!(
         proof1
             .verify_update(
-                RootHash(Node::new_null().hash::<Sha256>()),
+                RootHash(Node::new_null().hash::<Sha512>()),
                 root1,
                 &value_sets[0]
             )
@@ -498,11 +498,11 @@ fn many_keys_update_proof_and_verify_tree_root(seed: &[u8], num_keys: usize) {
     let _rng: StdRng = StdRng::from_seed(actual_seed);
 
     let db = MockTreeStore::default();
-    let tree = Sha256Jmt::new(&db);
+    let tree = Sha512Jmt::new(&db);
 
     let mut kvs = vec![];
     for i in 0..num_keys {
-        let key = KeyHash::with::<Sha256>(format!("key{}", i));
+        let key = KeyHash::with::<Sha512>(format!("key{}", i));
         let value = format!("value{}", i).into_bytes();
         kvs.push((key, Some(value)));
     }
@@ -514,7 +514,7 @@ fn many_keys_update_proof_and_verify_tree_root(seed: &[u8], num_keys: usize) {
 
     let first_root = roots_and_proofs[0].0;
 
-    let mut curr_root = RootHash(Node::new_null().hash::<Sha256>());
+    let mut curr_root = RootHash(Node::new_null().hash::<Sha512>());
     for (root, proof) in roots_and_proofs {
         assert!(proof.verify_update(curr_root, root, kvs.clone()).is_ok());
         curr_root = root;
@@ -542,19 +542,19 @@ fn many_versions_update_proof_and_verify_tree_root(seed: &[u8], num_versions: us
     let mut rng: StdRng = StdRng::from_seed(actual_seed);
 
     let db = MockTreeStore::default();
-    let tree = Sha256Jmt::new(&db);
+    let tree = Sha512Jmt::new(&db);
 
     let mut kvs = vec![];
     let mut roots = vec![];
 
     for i in 0..num_versions {
-        let key = KeyHash::with::<Sha256>(format!("key{}", i));
+        let key = KeyHash::with::<Sha512>(format!("key{}", i));
         let value = format!("value{}", i).into_bytes();
         let new_value = format!("new_value{}", i).into_bytes();
         kvs.push((key, value.clone(), new_value.clone()));
     }
 
-    let mut curr_root = RootHash(Node::new_null().hash::<Sha256>());
+    let mut curr_root = RootHash(Node::new_null().hash::<Sha512>());
     for (idx, (k, v_old, _v_new)) in kvs.iter().enumerate() {
         let value_sets = vec![vec![(*k, Some(v_old.clone()))]];
         let (roots_and_proofs, batch) = tree
@@ -618,7 +618,7 @@ fn proptest_clairvoyant_construction_matches_interleaved_construction_small_prov
     operations_by_version in
         (1usize..10) // possible numbers of versions
             .prop_flat_map(|versions| {
-                arb_interleaved_insertions_and_deletions::<Sha256>(20, 10, 10, 15) // (distinct keys, distinct values, insertions, deletions)
+                arb_interleaved_insertions_and_deletions::<Sha512>(20, 10, 10, 15) // (distinct keys, distinct values, insertions, deletions)
                     .prop_flat_map(move |ops| arb_partitions(versions, ops))
         })
 ) {
@@ -636,7 +636,7 @@ fn proptest_clairvoyant_construction_matches_interleaved_construction_proved(
     operations_by_version in
         (1usize..500) // possible numbers of versions
             .prop_flat_map(|versions| {
-                arb_interleaved_insertions_and_deletions::<Sha256>(100, 100, 1000, 1000) // (distinct keys, distinct values, insertions, deletions)
+                arb_interleaved_insertions_and_deletions::<Sha512>(100, 100, 1000, 1000) // (distinct keys, distinct values, insertions, deletions)
                     .prop_flat_map(move |ops| arb_partitions(versions, ops))
         })
 ) {

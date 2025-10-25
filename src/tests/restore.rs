@@ -4,7 +4,7 @@
 use alloc::{boxed::Box, collections::BTreeMap, sync::Arc, vec::Vec};
 
 use proptest::{collection::btree_map, prelude::*};
-use sha2::Sha256;
+use sha2::Sha512;
 
 use crate::{
     JellyfishMerkleTree, KeyHash, OwnedValue, RootHash, SimpleHasher, Version,
@@ -73,38 +73,38 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(10))]
 
     #[test]
-    fn test_restore_without_interruption_sha256(
+    fn test_restore_without_interruption_sha512(
         btree in btree_map(any::<KeyHash>(), any::<OwnedValue>(), 1..1000),
         target_version in 0u64..2000,
     ) {
         let restore_db = Arc::new(MockTreeStore::default());
         // For this test, restore everything without interruption.
-        restore_without_interruption::<Sha256>(&btree, target_version, &restore_db, true);
+        restore_without_interruption::<Sha512>(&btree, target_version, &restore_db, true);
     }
 
     #[test]
-    fn test_restore_with_interruption_sha256(
+    fn test_restore_with_interruption_sha512(
         (entries, first_batch_size) in btree_map(any::<KeyHash>(), any::<OwnedValue>(), 2..1000)
             .prop_flat_map(|btree| {
                 let len = btree.len();
                 (Just(btree), 1..len)
             })
     ) {
-        test_restore_with_interruption::<Sha256>(entries, first_batch_size )
+        test_restore_with_interruption::<Sha512>(entries, first_batch_size )
     }
 
 
 
     #[test]
-    fn test_overwrite_sha256(
+    fn test_overwrite_sha512(
         btree1 in btree_map(any::<KeyHash>(), any::<OwnedValue>(), 1..1000),
         btree2 in btree_map(any::<KeyHash>(), any::<OwnedValue>(), 1..1000),
         target_version in 0u64..2000,
     ) {
         let restore_db = Arc::new(MockTreeStore::new(true /* allow_overwrite */));
-        restore_without_interruption::<Sha256>(&btree1, target_version, &restore_db, true);
+        restore_without_interruption::<Sha512>(&btree1, target_version, &restore_db, true);
         // overwrite, an entirely different tree
-        restore_without_interruption::<Sha256>(&btree2, target_version, &restore_db, false);
+        restore_without_interruption::<Sha512>(&btree2, target_version, &restore_db, false);
     }
 }
 

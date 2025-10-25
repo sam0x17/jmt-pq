@@ -1,11 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use rand::{Rng, rngs::OsRng};
-use sha2::Sha256;
+use rand::{RngCore, rngs::OsRng};
+use sha2::Sha512;
 
 use crate::{
-    KeyHash, OwnedValue, ValueHash,
+    HashBytes, KeyHash, OwnedValue, ValueHash,
     mock::MockTreeStore,
     node_type::{Node, NodeKey},
     storage::LeafNode,
@@ -14,10 +14,12 @@ use crate::{
 };
 
 fn random_leaf_with_key(next_version: Version) -> (LeafNode, OwnedValue, NodeKey) {
-    let key: [u8; 32] = OsRng.r#gen();
-    let value: [u8; 32] = OsRng.r#gen();
-    let key_hash: KeyHash = KeyHash::with::<Sha256>(key);
-    let node = LeafNode::new(key_hash, ValueHash::with::<Sha256>(value));
+    let mut key: HashBytes = [0u8; crate::HASH_SIZE];
+    OsRng.fill_bytes(&mut key);
+    let mut value: HashBytes = [0u8; crate::HASH_SIZE];
+    OsRng.fill_bytes(&mut value);
+    let key_hash: KeyHash = KeyHash::with::<Sha512>(key);
+    let node = LeafNode::new(key_hash, ValueHash::with::<Sha512>(value));
     let node_key = NodeKey::new(next_version, NibblePath::new(key_hash.0.to_vec()));
     (node, value.to_vec(), node_key)
 }
@@ -82,12 +84,12 @@ fn test_freeze_with_delete() {
     cache.put_node(node2_key.clone(), node2.clone()).unwrap();
     assert_eq!(cache.get_node(&node1_key).unwrap(), node1);
     assert_eq!(cache.get_node(&node2_key).unwrap(), node2);
-    cache.freeze::<Sha256>().unwrap();
+    cache.freeze::<Sha512>().unwrap();
     assert_eq!(cache.get_node(&node1_key).unwrap(), node1);
     assert_eq!(cache.get_node(&node2_key).unwrap(), node2);
 
     cache.delete_node(&node1_key, true /* is_leaf */);
-    cache.freeze::<Sha256>().unwrap();
+    cache.freeze::<Sha512>().unwrap();
     let (_, update_batch) = cache.into();
     assert_eq!(update_batch.node_batch.nodes().len(), 3);
     assert_eq!(update_batch.stale_node_index_batch.len(), 1);

@@ -3,7 +3,7 @@
 
 #[cfg(not(feature = "std"))]
 use hashbrown::{HashMap, HashSet};
-use sha2::Sha256;
+use sha2::Sha512;
 #[cfg(feature = "std")]
 use std::collections::{HashMap, HashSet};
 
@@ -20,8 +20,8 @@ use proptest::{
 use crate::SimpleHasher;
 use crate::proof::definition::UpdateMerkleProof;
 use crate::{
-    Bytes32Ext, JellyfishMerkleIterator, JellyfishMerkleTree, KeyHash, OwnedValue, RootHash,
-    SPARSE_MERKLE_PLACEHOLDER_HASH, ValueHash,
+    Bytes32Ext, HASH_SIZE, HashBytes, JellyfishMerkleIterator, JellyfishMerkleTree, KeyHash,
+    OwnedValue, RootHash, SPARSE_MERKLE_PLACEHOLDER_HASH, ValueHash,
     mock::MockTreeStore,
     node_type::LeafNode,
     storage::Node,
@@ -40,10 +40,10 @@ type RootProofRecords<H> = Vec<RootProofRecord<H>>;
 
 /// Computes the key immediately after `key`.
 pub fn plus_one(key: KeyHash) -> KeyHash {
-    assert_ne!(key, KeyHash([0xff; 32]));
+    assert_ne!(key, KeyHash([0xff; HASH_SIZE]));
 
     let mut buf = key.0;
-    for i in (0..32).rev() {
+    for i in (0..HASH_SIZE).rev() {
         if buf[i] == 255 {
             buf[i] = 0;
         } else {
@@ -500,7 +500,7 @@ pub fn test_clairvoyant_construction_matches_interleaved_construction<H: SimpleH
         JellyfishMerkleIterator::new(
             Arc::new(db_without_deletions),
             version_without_deletions,
-            KeyHash([0u8; 32]),
+            KeyHash([0u8; HASH_SIZE]),
         )
         .unwrap()
         .collect::<Result<Vec<_>, _>>()
@@ -514,7 +514,7 @@ pub fn test_clairvoyant_construction_matches_interleaved_construction<H: SimpleH
         JellyfishMerkleIterator::new(
             Arc::new(db_with_deletions),
             version_with_deletions,
-            KeyHash([0u8; 32]),
+            KeyHash([0u8; HASH_SIZE]),
         )
         .unwrap()
         .collect::<Result<Vec<_>, _>>()
@@ -586,17 +586,17 @@ pub fn test_clairvoyant_construction_matches_interleaved_construction_proved(
     // Compute the root hash of the version without deletions (note that the computed root hash is a
     // `Result` which we haven't unwrapped yet)
     let (_db_without_deletions, version_without_deletions, roots_proofs_without_deletions) =
-        init_mock_db_versioned::<Sha256>(clairvoyant_operations_by_version, true);
+        init_mock_db_versioned::<Sha512>(clairvoyant_operations_by_version, true);
 
     // Compute the root hash of the version with deletions (note that the computed root hash is a
     // `Result` which we haven't unwrapped yet)
     let (_db_with_deletions, version_with_deletions, roots_proofs_with_deletions) =
-        init_mock_db_versioned_with_deletions::<Sha256>(operations_by_version, true);
+        init_mock_db_versioned_with_deletions::<Sha512>(operations_by_version, true);
 
     // We know need to check that the updates from the tree have been performed correctly.
     // We need to loop over the vectors of proofs and verify each one
     if version_without_deletions != PRE_GENESIS_VERSION {
-        let mut old_root = RootHash(Node::new_null().hash::<Sha256>());
+        let mut old_root = RootHash(Node::new_null().hash::<Sha512>());
         for (new_root, proof, ops) in roots_proofs_without_deletions.unwrap() {
             assert!(proof.verify_update(old_root, new_root, ops).is_ok());
             old_root = new_root;
@@ -606,7 +606,7 @@ pub fn test_clairvoyant_construction_matches_interleaved_construction_proved(
     // We know need to check that the updates from the tree have been performed correctly.
     // We need to loop over the vectors of proofs and verify each one
     if version_with_deletions != PRE_GENESIS_VERSION {
-        let mut old_root = RootHash(Node::new_null().hash::<Sha256>());
+        let mut old_root = RootHash(Node::new_null().hash::<Sha512>());
         for (new_root, proof, ops) in roots_proofs_with_deletions.unwrap() {
             assert!(proof.verify_update(old_root, new_root, ops).is_ok());
             old_root = new_root;
@@ -617,7 +617,8 @@ pub fn test_clairvoyant_construction_matches_interleaved_construction_proved(
 pub fn arb_kv_pair_with_distinct_last_nibble()
 -> impl Strategy<Value = ((KeyHash, OwnedValue), (KeyHash, OwnedValue))> {
     (
-        any::<KeyHash>().prop_filter("Can't be 0xffffff...", |key| *key != KeyHash([0xff; 32])),
+        any::<KeyHash>()
+            .prop_filter("Can't be 0xffffff...", |key| *key != KeyHash([0xff; HASH_SIZE])),
         vec(any::<OwnedValue>(), 2),
     )
         .prop_map(|(key1, accounts)| {
@@ -753,8 +754,8 @@ fn verify_range_proof<H: SimpleHasher>(
         buf.push(true);
         // The rest doesn't matter, because they don't affect the position of the node. We just
         // add zeros.
-        buf.resize(256, false);
-        let key = KeyHash(<[u8; 32]>::from_bit_iter(buf.into_iter()).unwrap());
+        buf.resize(HASH_SIZE * 8, false);
+        let key = KeyHash(<HashBytes>::from_bit_iter(buf.into_iter()).unwrap());
         btree1.insert(key, sibling.hash::<H>());
     }
 
@@ -784,7 +785,7 @@ fn verify_range_proof<H: SimpleHasher>(
 }
 
 /// Reduces the problem by removing the first bit of every key.
-fn reduce<'a>(kvs: &'a [(&[bool], [u8; 32])]) -> Vec<(&'a [bool], [u8; 32])> {
+fn reduce<'a>(kvs: &'a [(&[bool], HashBytes)]) -> Vec<(&'a [bool], HashBytes)> {
     kvs.iter().map(|(key, value)| (&key[1..], *value)).collect()
 }
 
@@ -811,7 +812,7 @@ where
 
 /// Computes the root hash of a sparse Merkle tree. `kvs` consists of the entire set of key-value
 /// pairs stored in the tree.
-fn compute_root_hash<H: SimpleHasher>(kvs: Vec<(Vec<bool>, [u8; 32])>) -> RootHash {
+fn compute_root_hash<H: SimpleHasher>(kvs: Vec<(Vec<bool>, HashBytes)>) -> RootHash {
     let mut kv_ref = vec![];
     for (key, value) in &kvs {
         kv_ref.push((&key[..], *value));
@@ -819,7 +820,7 @@ fn compute_root_hash<H: SimpleHasher>(kvs: Vec<(Vec<bool>, [u8; 32])>) -> RootHa
     RootHash(compute_root_hash_impl::<H>(kv_ref))
 }
 
-fn compute_root_hash_impl<H: SimpleHasher>(kvs: Vec<(&[bool], [u8; 32])>) -> [u8; 32] {
+fn compute_root_hash_impl<H: SimpleHasher>(kvs: Vec<(&[bool], HashBytes)>) -> HashBytes {
     assert!(!kvs.is_empty());
 
     // If there is only one entry, it is the root.

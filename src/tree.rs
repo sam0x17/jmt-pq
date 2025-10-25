@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use crate::proof::definition::UpdateMerkleProof;
 use crate::proof::{SparseMerkleLeafNode, SparseMerkleNode};
 use crate::{
-    Bytes32Ext, KeyHash, MissingRootError, OwnedValue, RootHash, SimpleHasher, ValueHash,
+    Bytes32Ext, HashBytes, KeyHash, MissingRootError, OwnedValue, RootHash, SimpleHasher, ValueHash,
     node_type::{Child, Children, InternalNode, LeafNode, Node, NodeKey, NodeType},
     storage::{TreeReader, TreeUpdateBatch},
     tree_cache::TreeCache,
@@ -32,10 +32,10 @@ type PutNodeResult = PutResult<(NodeKey, Node)>;
 type PutOutcome<H> = Result<(PutNodeResult, Option<SparseMerkleProof<H>>)>;
 type ProofQueryResult<H> = Result<(OwnedValue, SparseMerkleProof<H>), ExclusionProof<H>>;
 
-/// A [`JellyfishMerkleTree`] instantiated using the `sha2::Sha256` hasher.
+/// A [`JellyfishMerkleTree`] instantiated using the `sha2::Sha512` hasher.
 /// This is a sensible default choice for most applications.
 #[cfg(any(test, feature = "sha2"))]
-pub type Sha256Jmt<'a, R> = JellyfishMerkleTree<'a, R, sha2::Sha256>;
+pub type Sha512Jmt<'a, R> = JellyfishMerkleTree<'a, R, sha2::Sha512>;
 
 /// A Jellyfish Merkle tree data structure, parameterized by a [`TreeReader`] `R`
 /// and a [`SimpleHasher`] `H`. See [`crate`] for description.
@@ -67,8 +67,8 @@ where
     fn get_hash(
         node_key: &NodeKey,
         node: &Node,
-        hash_cache: &Option<&HashMap<NibblePath, [u8; 32]>>,
-    ) -> [u8; 32] {
+        hash_cache: &Option<&HashMap<NibblePath, HashBytes>>,
+    ) -> HashBytes {
         if let Some(cache) = hash_cache {
             match cache.get(node_key.nibble_path()) {
                 Some(hash) => *hash,
@@ -83,7 +83,7 @@ where
     pub fn batch_put_value_sets(
         &self,
         value_sets: Vec<Vec<(KeyHash, OwnedValue)>>,
-        node_hashes: Option<Vec<&HashMap<NibblePath, [u8; 32]>>>,
+        node_hashes: Option<Vec<&HashMap<NibblePath, HashBytes>>>,
         first_version: Version,
     ) -> Result<(Vec<RootHash>, TreeUpdateBatch)> {
         let mut tree_cache = TreeCache::new(self.reader, first_version)?;
@@ -134,7 +134,7 @@ where
         version: Version,
         kvs: &[(KeyHash, ValueHash)],
         depth: usize,
-        hash_cache: &Option<&HashMap<NibblePath, [u8; 32]>>,
+        hash_cache: &Option<&HashMap<NibblePath, HashBytes>>,
         tree_cache: &mut TreeCache<R>,
     ) -> Result<(NodeKey, Node)> {
         assert!(!kvs.is_empty());
@@ -241,7 +241,7 @@ where
         existing_leaf_node: LeafNode,
         kvs: &[(KeyHash, ValueHash)],
         depth: usize,
-        hash_cache: &Option<&HashMap<NibblePath, [u8; 32]>>,
+        hash_cache: &Option<&HashMap<NibblePath, HashBytes>>,
         tree_cache: &mut TreeCache<R>,
     ) -> Result<(NodeKey, Node)> {
         let existing_leaf_key = existing_leaf_node.key_hash();
@@ -312,7 +312,7 @@ where
         version: Version,
         kvs: &[(KeyHash, ValueHash)],
         depth: usize,
-        hash_cache: &Option<&HashMap<NibblePath, [u8; 32]>>,
+        hash_cache: &Option<&HashMap<NibblePath, HashBytes>>,
         tree_cache: &mut TreeCache<R>,
     ) -> Result<(NodeKey, Node)> {
         if kvs.len() == 1 {

@@ -4,7 +4,7 @@
 //! Node types of [`JellyfishMerkleTree`](crate::JellyfishMerkleTree)
 //!
 //! This module defines two types of Jellyfish Merkle tree nodes: [`InternalNode`]
-//! and [`LeafNode`] as building blocks of a 256-bit
+//! and [`LeafNode`] as building blocks of a 512-bit
 //! [`JellyfishMerkleTree`](crate::JellyfishMerkleTree). [`InternalNode`] represents a 4-level
 //! binary tree to optimize for IOPS: it compresses a tree with 31 nodes into one node with 16
 //! chidren at the lowest level. [`LeafNode`] stores the full key and the value associated.
@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::proof::SparseMerkleNode;
 use crate::{
-    KeyHash, SPARSE_MERKLE_PLACEHOLDER_HASH, ValueHash,
+    HashBytes, KeyHash, SPARSE_MERKLE_PLACEHOLDER_HASH, ValueHash,
     types::{
         Version,
         nibble::{Nibble, nibble_path::NibblePath},
@@ -144,7 +144,8 @@ impl Arbitrary for NodeType {
 #[cfg_attr(any(test), derive(Arbitrary))]
 pub struct Child {
     /// The hash value of this child node.
-    pub hash: [u8; 32],
+    #[serde(with = "crate::hash_bytes_serde")]
+    pub hash: HashBytes,
     /// `version`, the `nibble_path` of the ['NodeKey`] of this [`InternalNode`] the child belongs
     /// to and the child's index constitute the [`NodeKey`] to uniquely identify this child node
     /// from the storage. Used by `[`NodeKey::gen_child_node_key`].
@@ -155,7 +156,7 @@ pub struct Child {
 }
 
 impl Child {
-    pub fn new(hash: [u8; 32], version: Version, node_type: NodeType) -> Self {
+    pub fn new(hash: HashBytes, version: Version, node_type: NodeType) -> Self {
         Self {
             hash,
             version,
@@ -441,7 +442,7 @@ impl InternalNode {
         }
     }
 
-    pub fn hash<H: SimpleHasher>(&self) -> [u8; 32] {
+    pub fn hash<H: SimpleHasher>(&self) -> HashBytes {
         self.merkle_hash::<H>(
             0,  /* start index */
             16, /* the number of leaves in the subtree of which we want the hash of root */
@@ -563,7 +564,7 @@ impl InternalNode {
         start: u8,
         width: u8,
         (existence_bitmap, leaf_bitmap): (u16, u16),
-    ) -> [u8; 32] {
+    ) -> HashBytes {
         // Given a bit [start, 1 << nibble_height], return the value of that range.
         let (range_existence_bitmap, range_leaf_bitmap) =
             Self::range_bitmaps(start, width, (existence_bitmap, leaf_bitmap));
@@ -849,7 +850,7 @@ impl LeafNode {
         self.value_hash
     }
 
-    pub fn hash<H: SimpleHasher>(&self) -> [u8; 32] {
+    pub fn hash<H: SimpleHasher>(&self) -> HashBytes {
         SparseMerkleLeafNode::new(self.key_hash, self.value_hash).hash::<H>()
     }
 }
@@ -941,7 +942,7 @@ impl Node {
     }
 
     /// Computes the hash of nodes.
-    pub(crate) fn hash<H: SimpleHasher>(&self) -> [u8; 32] {
+    pub(crate) fn hash<H: SimpleHasher>(&self) -> HashBytes {
         match self {
             Node::Null => SPARSE_MERKLE_PLACEHOLDER_HASH,
             Node::Internal(internal_node) => internal_node.hash::<H>(),

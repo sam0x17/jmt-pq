@@ -8,7 +8,7 @@ use alloc::vec::Vec;
 use proptest::{collection::vec, prelude::*};
 
 use crate::{
-    SimpleHasher,
+    HASH_SIZE, SimpleHasher,
     types::proof::{SparseMerkleLeafNode, SparseMerkleProof, SparseMerkleRangeProof},
 };
 
@@ -34,7 +34,7 @@ impl<H: SimpleHasher + 'static> Arbitrary for SparseMerkleProof<H> {
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
         (
             any::<Option<SparseMerkleLeafNode>>(),
-            (0..=256usize).prop_flat_map(|len| {
+            (0..=HASH_SIZE * 8).prop_flat_map(|len| {
                 if len == 0 {
                     Just(Vec::new()).boxed()
                 } else {
@@ -60,7 +60,7 @@ impl<H: SimpleHasher + 'static> Arbitrary for SparseMerkleRangeProof<H> {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        vec(arb_sparse_merkle_sibling(), 0..=256)
+        vec(arb_sparse_merkle_sibling(), 0..=HASH_SIZE * 8)
             .prop_map(Self::new)
             .boxed()
     }

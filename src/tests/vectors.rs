@@ -1,8 +1,8 @@
 use alloc::{string::String, vec::Vec};
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
+use sha2::Sha512;
 
-use crate::{KeyHash, Sha256Jmt, mock::MockTreeStore};
+use crate::{HashBytes, KeyHash, Sha512Jmt, mock::MockTreeStore};
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct TestVectorWrapper {
@@ -14,7 +14,7 @@ pub(crate) struct TestVectorWrapper {
 #[derive(Serialize, Deserialize)]
 pub(crate) struct TestVector {
     #[serde(with = "hex::serde")]
-    pub expected_root: [u8; 32],
+    pub expected_root: HashBytes,
     pub data: Vec<KeyValuePair>,
 }
 
@@ -28,18 +28,18 @@ pub(crate) struct KeyValuePair {
 
 #[test]
 fn test_with_vectors() {
-    let test_vectors = include_str!("sha2_256_vectors.json");
+    let test_vectors = include_str!("sha2_512_vectors.json");
 
     let test_file: TestVectorWrapper =
         serde_json::from_str(test_vectors).expect("test vectors must be valid json");
 
     let store = &MockTreeStore::default();
 
-    let jmt = Sha256Jmt::new(store);
+    let jmt = Sha512Jmt::new(store);
     for vector in test_file.vectors {
         let mut key_value_pairs = Vec::new();
         for pair in vector.data {
-            let key_hash = KeyHash::with::<Sha256>(&pair.key);
+            let key_hash = KeyHash::with::<Sha512>(&pair.key);
             key_value_pairs.push((key_hash, Some(pair.value)));
         }
 
