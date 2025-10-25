@@ -1,17 +1,17 @@
 [package]
-name = "jmt"
+name = "jmt-pq"
 version = "0.12.0"
 authors = [
+    "sam0x17",
     "Penumbra Labs <team@penumbralabs.xyz>",
     "Diem Association <opensource@diem.com>",
 ]
-description = "Jellyfish Merkle Tree"
-repository = "https://github.com/penumbra-zone/jmt"
-homepage = "https://penumbra.zone"
+description = "PQ Jellyfish Merkle Tree"
+repository = "https://github.com/sam0x17/jmt-pq"
 license = "Apache-2.0"
 edition = "2024"
 
-keywords = ["merkle-tree", "authenticated"]
+keywords = ["merkle-tree", "authenticated", "post-quantum", "pq", "jellyfish"]
 categories = ["cryptography", "data-structures"]
 publish = true
 
