@@ -14,8 +14,8 @@ use crate::{
 };
 
 fn random_leaf_with_key(next_version: Version) -> (LeafNode, OwnedValue, NodeKey) {
-    let key: [u8; 32] = OsRng.gen();
-    let value: [u8; 32] = OsRng.gen();
+    let key: [u8; 32] = OsRng.r#gen();
+    let value: [u8; 32] = OsRng.r#gen();
     let key_hash: KeyHash = KeyHash::with::<Sha256>(key);
     let node = LeafNode::new(key_hash, ValueHash::with::<Sha256>(value));
     let node_key = NodeKey::new(next_version, NibblePath::new(key_hash.0.to_vec()));

@@ -73,9 +73,7 @@ extern crate alloc;
 
 use core::fmt::Debug;
 
-use digest::generic_array::GenericArray;
-use digest::Digest;
-use digest::OutputSizeUser;
+use digest::{consts::U32, Digest};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "std")]
 use thiserror::Error;
@@ -324,20 +322,25 @@ pub trait SimpleHasher: Sized {
     }
 }
 
-impl<T: Digest> SimpleHasher for T
+impl<T> SimpleHasher for T
 where
-    [u8; 32]: From<GenericArray<u8, <T as OutputSizeUser>::OutputSize>>,
+    T: Digest<OutputSize = U32>,
 {
     fn new() -> Self {
-        <T as Digest>::new()
+        T::new()
     }
 
     fn update(&mut self, data: &[u8]) {
-        self.update(data)
+        Digest::update(self, data)
     }
 
     fn finalize(self) -> [u8; 32] {
-        self.finalize().into()
+        let output = Digest::finalize(self);
+        let mut result = [0u8; 32];
+        for (dest, src) in result.iter_mut().zip(output.iter()) {
+            *dest = *src;
+        }
+        result
     }
 }
 

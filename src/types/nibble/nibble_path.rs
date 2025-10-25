@@ -4,6 +4,8 @@
 //! NibblePath library simplify operations with nibbles in a compact format for modified sparse
 //! Merkle tree by providing powerful iterators advancing by either bit or nibble.
 
+#![allow(unexpected_cfgs)]
+
 use alloc::vec;
 use core::{fmt, iter::FromIterator};
 
@@ -173,7 +175,7 @@ impl NibblePath {
     }
 
     /// Get a bit iterator iterates over the whole nibble path.
-    pub fn bits(&self) -> BitIterator {
+    pub fn bits(&self) -> BitIterator<'_> {
         assume!(self.num_nibbles <= ROOT_NIBBLE_HEIGHT); // invariant
         BitIterator {
             nibble_path: self,
@@ -182,7 +184,7 @@ impl NibblePath {
     }
 
     /// Get a nibble iterator iterates over the whole nibble path.
-    pub fn nibbles(&self) -> NibbleIterator {
+    pub fn nibbles(&self) -> NibbleIterator<'_> {
         assume!(self.num_nibbles <= ROOT_NIBBLE_HEIGHT); // invariant
         NibbleIterator::new(self, 0, self.num_nibbles)
     }

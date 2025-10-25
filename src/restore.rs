@@ -5,6 +5,8 @@
 //! [`JellyfishMerkleTree`](crate::JellyfishMerkleTree) from small chunks of
 //! key/value pairs.
 
+#![allow(unexpected_cfgs)]
+
 use core::marker::PhantomData;
 
 use alloc::boxed::Box;

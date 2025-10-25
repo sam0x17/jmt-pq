@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 use core::ops::Index;
 
 use mirai_annotations::*;
@@ -16,6 +18,7 @@ pub trait Bytes32Ext: Index<usize> + Sized {
         self.common_prefix_bits_len(other) / 4
     }
     /// Constructs a `HashValue` from an iterator of bits.
+    #[allow(dead_code)]
     fn from_bit_iter(iter: impl ExactSizeIterator<Item = bool>) -> Option<Self>;
 }
 

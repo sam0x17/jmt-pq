@@ -3,11 +3,11 @@
 use crate::{mock::MockTreeStore, JellyfishMerkleTree, OwnedValue, SimpleHasher};
 use alloc::{rc::Rc, vec::Vec};
 use borsh::{BorshDeserialize, BorshSerialize};
-use core::{convert::TryInto, panic};
+use core::convert::TryInto;
 
-use alloc::{format, vec};
+use alloc::vec;
 use proptest::prelude::*;
-use rand::rngs::OsRng;
+use rand::{rngs::OsRng, Rng, RngCore};
 use sha2::Sha256;
 
 use crate::{
@@ -136,7 +136,7 @@ fn test_internal_validity() {
         let mut children = Children::default();
         children.insert(
             Nibble::from(1),
-            Child::new(OsRng.gen(), 0 /* version */, NodeType::Leaf),
+            Child::new(OsRng.r#gen(), 0 /* version */, NodeType::Leaf),
         );
         InternalNode::new(children);
     });
@@ -146,7 +146,7 @@ fn test_internal_validity() {
 #[test]
 fn test_leaf_hash() {
     {
-        let address = KeyHash(OsRng.gen());
+        let address = KeyHash(OsRng.r#gen());
         let blob = vec![0x02];
         let value_hash = ValueHash::with::<Sha256>(blob.as_slice());
         let hash = hash_leaf(address, value_hash);
@@ -366,7 +366,7 @@ value1 in prop::collection::vec(any::<u8>(), 1..10), value2 in prop::collection:
         let mut leaf_keys: Vec<(NodeKey, KeyHash)> = vec![];
 
         leaf_keys.push(gen_leaf_keys(0 /* version */, internal_node_key.nibble_path(),
-         vec![index0, Nibble::from(OsRng.gen::<u8>() % 16)]));
+         vec![index0, Nibble::from(OsRng.r#gen::<u8>() % 16)]));
 
         let internal2_node_key = gen_node_keys(0 /* version */, internal_node_key.nibble_path(), vec![2.into()]);
 
@@ -377,7 +377,7 @@ value1 in prop::collection::vec(any::<u8>(), 1..10), value2 in prop::collection:
         leaf_keys.push(gen_leaf_keys(0, internal3_node_key.nibble_path(), vec![index3]));
         leaf_keys.push(gen_leaf_keys(0, internal3_node_key.nibble_path(), vec![index4]));
 
-        leaf_keys.push(gen_leaf_keys(0 /* version */, internal_node_key.nibble_path(), vec![index5, Nibble::from(OsRng.gen::<u8>() % 16)]));
+        leaf_keys.push(gen_leaf_keys(0 /* version */, internal_node_key.nibble_path(), vec![index5, Nibble::from(OsRng.r#gen::<u8>() % 16)]));
 
         let mut leaves: Vec<Node> = vec![];
         let mut leaf_hashes: Vec<[u8;32]> = vec![];

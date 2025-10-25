@@ -39,7 +39,7 @@ fn test_n_leaves_same_version(n: usize) {
 
     let mut btree = BTreeMap::new();
     for i in 0..n {
-        let key = KeyHash(rng.gen());
+        let key = KeyHash(rng.r#gen());
         let value = i.to_be_bytes().to_vec();
         assert_eq!(btree.insert(key, value), None);
     }
