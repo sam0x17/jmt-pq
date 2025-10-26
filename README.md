@@ -4,6 +4,8 @@
 [![Docs.rs](https://docs.rs/jmt-pq/badge.svg)](https://docs.rs/jmt-pq)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-This repository is a fork of [penumbra-zone/jmt](https://github.com/penumbra-zone/jmt) (itself
+This crate is a fork of [penumbra-zone/jmt](https://github.com/penumbra-zone/jmt) (itself
 a fork of the [Diem Jellyfish Merkle Tree](https://github.com/diem/diem/tree/main/storage/jellyfish-merkle)
-crate), modified for post-quantum resistance using SHA-512 instead of SHA-256.
+crate), modified for post-quantum resistance using SHA-512 instead of SHA-256 and
+[lencode](https://crates.io/creates/lencode) instead of borsh for
+serialization/deserialization.
