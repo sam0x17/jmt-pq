@@ -24,30 +24,40 @@ pub trait Bytes32Ext: Index<usize> + Sized {
 }
 
 impl Bytes32Ext for HashBytes {
+    #[inline(always)]
     fn get_nibble(&self, index: usize) -> crate::types::nibble::Nibble {
-        crate::types::nibble::Nibble::from(if index.is_multiple_of(2) {
-            self[index / 2] >> 4
+        let byte = self[index >> 1];
+        let nibble = if (index & 1) == 0 {
+            byte >> 4
         } else {
-            self[index / 2] & 0x0F
-        })
+            byte & 0x0f
+        };
+        crate::types::nibble::Nibble::from(nibble)
     }
 
+    #[inline(always)]
     fn common_prefix_bits_len(&self, other: &HashBytes) -> usize {
-        self.iter_bits()
-            .zip(other.iter_bits())
-            .take_while(|(x, y)| x == y)
-            .count()
+        for (idx, (&lhs, &rhs)) in self.iter().zip(other.iter()).enumerate() {
+            if lhs == rhs {
+                continue;
+            }
+            let diff = lhs ^ rhs;
+            return idx * 8 + diff.leading_zeros() as usize;
+        }
+        HASH_SIZE * 8
     }
 
+    #[inline(always)]
     fn iter_bits(&self) -> HashValueBitIterator<'_> {
         HashValueBitIterator::new(self)
     }
 
+    #[inline(always)]
     fn nibble(&self, index: usize) -> u8 {
         assume!(index < HASH_SIZE * 2); // assumed precondition
-        let pos = index / 2;
-        let shift = if index.is_multiple_of(2) { 4 } else { 0 };
-        (self[pos] >> shift) & 0x0f
+        let byte = self[index >> 1];
+        let shift = if (index & 1) == 0 { 4 } else { 0 };
+        (byte >> shift) & 0x0f
     }
 
     /// Constructs a `HashValue` from an iterator of bits.
@@ -77,6 +87,7 @@ pub struct HashValueBitIterator<'a> {
 
 impl<'a> HashValueBitIterator<'a> {
     /// Constructs a new `HashValueBitIterator` using given `HashValue`.
+    #[inline(always)]
     fn new(hash_value: &'a HashBytes) -> Self {
         HashValueBitIterator {
             hash_bytes: hash_value.as_ref(),
@@ -85,12 +96,13 @@ impl<'a> HashValueBitIterator<'a> {
     }
 
     /// Returns the `index`-th bit in the bytes.
+    #[inline(always)]
     fn get_bit(&self, index: usize) -> bool {
         assume!(index < self.pos.end); // assumed precondition
         assume!(self.hash_bytes.len() == HASH_SIZE); // invariant
         assume!(self.pos.end == self.hash_bytes.len() * 8); // invariant
-        let pos = index / 8;
-        let bit = 7 - index % 8;
+        let pos = index >> 3;
+        let bit = 7 - (index & 7);
         (self.hash_bytes[pos] >> bit) & 1 != 0
     }
 }
@@ -98,6 +110,7 @@ impl<'a> HashValueBitIterator<'a> {
 impl<'a> core::iter::Iterator for HashValueBitIterator<'a> {
     type Item = bool;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         self.pos.next().map(|x| self.get_bit(x))
     }
@@ -108,6 +121,7 @@ impl<'a> core::iter::Iterator for HashValueBitIterator<'a> {
 }
 
 impl<'a> core::iter::DoubleEndedIterator for HashValueBitIterator<'a> {
+    #[inline(always)]
     fn next_back(&mut self) -> Option<Self::Item> {
         self.pos.next_back().map(|x| self.get_bit(x))
     }

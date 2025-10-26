@@ -22,6 +22,7 @@ pub const ROOT_NIBBLE_HEIGHT: usize = HASH_SIZE * 2;
 pub struct Nibble(u8);
 
 impl From<u8> for Nibble {
+    #[inline(always)]
     fn from(nibble: u8) -> Self {
         assert!(nibble < 16, "Nibble out of range: {}", nibble);
         Self(nibble)
@@ -29,6 +30,7 @@ impl From<u8> for Nibble {
 }
 
 impl From<Nibble> for u8 {
+    #[inline(always)]
     fn from(nibble: Nibble) -> Self {
         nibble.0
     }
@@ -41,7 +43,8 @@ impl fmt::LowerHex for Nibble {
 }
 
 impl Nibble {
-    pub fn as_usize(self) -> usize {
+    #[inline(always)]
+    pub const fn as_usize(self) -> usize {
         self.0 as usize
     }
 }
@@ -55,6 +58,7 @@ pub(crate) struct NibbleRangeIterator<'a> {
 }
 
 impl<'a> NibbleRangeIterator<'a> {
+    #[inline(always)]
     pub fn new(sorted_kvs: &'a [(KeyHash, ValueHash)], nibble_idx: usize) -> Self {
         assert!(nibble_idx < ROOT_NIBBLE_HEIGHT);
         NibbleRangeIterator {

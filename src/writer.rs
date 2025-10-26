@@ -2,7 +2,7 @@ use alloc::collections::{BTreeMap, BTreeSet};
 
 use alloc::vec::Vec;
 use anyhow::Result;
-use borsh::{BorshDeserialize, BorshSerialize};
+use lencode::prelude::{Decode, Encode};
 #[cfg(test)]
 use proptest_derive::Arbitrary;
 
@@ -21,7 +21,7 @@ pub trait TreeWriter {
 }
 
 /// Node batch that will be written into db atomically with other batches.
-#[derive(Debug, Clone, PartialEq, Default, Eq, borsh::BorshSerialize, borsh::BorshDeserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Eq, Encode, Decode)]
 pub struct NodeBatch {
     nodes: BTreeMap<NodeKey, Node>,
     values: BTreeMap<(Version, KeyHash), Option<OwnedValue>>,
@@ -91,7 +91,7 @@ impl NodeBatch {
 /// with other batches.
 pub type StaleNodeIndexBatch = BTreeSet<StaleNodeIndex>;
 
-#[derive(Clone, Debug, Default, Eq, PartialEq, borsh::BorshSerialize, borsh::BorshDeserialize)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, Encode, Decode)]
 pub struct NodeStats {
     pub new_nodes: usize,
     pub new_leaves: usize,
@@ -100,7 +100,7 @@ pub struct NodeStats {
 }
 
 /// Indicates a node becomes stale since `stale_since_version`.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, BorshDeserialize, BorshSerialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode)]
 #[cfg_attr(any(test), derive(Arbitrary))]
 pub struct StaleNodeIndex {
     /// The version since when the node is overwritten and becomes stale.
@@ -114,7 +114,7 @@ pub struct StaleNodeIndex {
 /// [`StaleNodeIndexBatch`](type.StaleNodeIndexBatch.html) and some stats of nodes that represents
 /// the incremental updates of a tree and pruning indices after applying a write set,
 /// which is a vector of `hashed_account_address` and `new_value` pairs.
-#[derive(Clone, Debug, Default, Eq, PartialEq, BorshSerialize, BorshDeserialize)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, Encode, Decode)]
 pub struct TreeUpdateBatch {
     pub node_batch: NodeBatch,
     pub stale_node_index_batch: StaleNodeIndexBatch,

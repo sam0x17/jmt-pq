@@ -10,6 +10,7 @@ use alloc::vec;
 use core::{fmt, iter::FromIterator};
 
 use alloc::vec::Vec;
+use lencode::prelude::{Decode, Encode};
 use mirai_annotations::*;
 #[cfg(test)]
 use proptest::{collection::vec, prelude::*};
@@ -18,18 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::types::nibble::{Nibble, ROOT_NIBBLE_HEIGHT};
 
 /// NibblePath defines a path in Merkle tree in the unit of nibble (4 bits).
-#[derive(
-    Clone,
-    Hash,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    Serialize,
-    Deserialize,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
-)]
+#[derive(Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Encode, Decode)]
 pub struct NibblePath {
     /// Indicates the total number of nibbles in bytes. Either `bytes.len() * 2 - 1` or
     /// `bytes.len() * 2`.
@@ -100,6 +90,7 @@ prop_compose! {
 
 impl NibblePath {
     /// Creates a new `NibblePath` from a vector of bytes assuming each byte has 2 nibbles.
+    #[inline(always)]
     pub(crate) fn new(bytes: Vec<u8>) -> Self {
         checked_precondition!(bytes.len() <= ROOT_NIBBLE_HEIGHT / 2);
         let num_nibbles = bytes.len() * 2;
@@ -110,6 +101,7 @@ impl NibblePath {
     // Unlike `new`, this function is not used under all feature combinations - so
     // we #[allow(unused)] to silence the warnings
     #[allow(unused)]
+    #[inline(always)]
     pub(crate) fn new_odd(bytes: Vec<u8>) -> Self {
         checked_precondition!(bytes.len() <= ROOT_NIBBLE_HEIGHT / 2);
         assert_eq!(
@@ -122,19 +114,23 @@ impl NibblePath {
     }
 
     /// Adds a nibble to the end of the nibble path.
+    #[inline(always)]
     pub(crate) fn push(&mut self, nibble: Nibble) {
         assert!(ROOT_NIBBLE_HEIGHT > self.num_nibbles);
-        if self.num_nibbles.is_multiple_of(2) {
-            self.bytes.push(u8::from(nibble) << 4);
+        let nibble_u8 = u8::from(nibble);
+        if (self.num_nibbles & 1) == 0 {
+            self.bytes.push(nibble_u8 << 4);
         } else {
-            self.bytes[self.num_nibbles / 2] |= u8::from(nibble);
+            let idx = self.num_nibbles >> 1;
+            self.bytes[idx] |= nibble_u8;
         }
         self.num_nibbles += 1;
     }
 
     /// Pops a nibble from the end of the nibble path.
+    #[inline(always)]
     pub(crate) fn pop(&mut self) -> Option<Nibble> {
-        let poped_nibble = if self.num_nibbles.is_multiple_of(2) {
+        let poped_nibble = if (self.num_nibbles & 1) == 0 {
             self.bytes.last_mut().map(|last_byte| {
                 let nibble = *last_byte & 0x0f;
                 *last_byte &= 0xf0;
@@ -150,56 +146,66 @@ impl NibblePath {
     }
 
     /// Returns the last nibble.
+    #[inline(always)]
     pub fn last(&self) -> Option<Nibble> {
-        let last_byte_option = self.bytes.last();
-        if self.num_nibbles.is_multiple_of(2) {
-            last_byte_option.map(|last_byte| Nibble::from(*last_byte & 0x0f))
+        let last_byte = self.bytes.last()?;
+        if (self.num_nibbles & 1) == 0 {
+            Some(Nibble::from(*last_byte & 0x0f))
         } else {
-            let last_byte = last_byte_option.expect("Last byte must exist if num_nibbles is odd.");
             Some(Nibble::from(*last_byte >> 4))
         }
     }
 
     /// Get the i-th bit.
+    #[inline(always)]
     pub(crate) fn get_bit(&self, i: usize) -> bool {
         assert!(i < self.num_nibbles * 4);
-        let pos = i / 8;
-        let bit = 7 - i % 8;
+        let pos = i >> 3;
+        let bit = 7 - (i & 7);
         ((self.bytes[pos] >> bit) & 1) != 0
     }
 
     /// Get the i-th nibble.
+    #[inline(always)]
     pub fn get_nibble(&self, i: usize) -> Nibble {
         assert!(i < self.num_nibbles);
-        Nibble::from((self.bytes[i / 2] >> (if i % 2 == 1 { 0 } else { 4 })) & 0xf)
+        let byte = self.bytes[i >> 1];
+        let shift = if (i & 1) == 0 { 4 } else { 0 };
+        Nibble::from((byte >> shift) & 0xf)
     }
 
     /// Get a bit iterator iterates over the whole nibble path.
+    #[inline(always)]
     pub fn bits(&self) -> BitIterator<'_> {
         assume!(self.num_nibbles <= ROOT_NIBBLE_HEIGHT); // invariant
+        let bit_len = self.num_nibbles << 2;
         BitIterator {
             nibble_path: self,
-            pos: (0..self.num_nibbles * 4),
+            pos: (0..bit_len),
         }
     }
 
     /// Get a nibble iterator iterates over the whole nibble path.
+    #[inline(always)]
     pub fn nibbles(&self) -> NibbleIterator<'_> {
         assume!(self.num_nibbles <= ROOT_NIBBLE_HEIGHT); // invariant
         NibbleIterator::new(self, 0, self.num_nibbles)
     }
 
     /// Get the total number of nibbles stored.
+    #[inline(always)]
     pub fn num_nibbles(&self) -> usize {
         self.num_nibbles
     }
 
     ///  Returns `true` if the nibbles contains no elements.
+    #[inline(always)]
     pub fn is_empty(&self) -> bool {
         self.num_nibbles() == 0
     }
 
     /// Get the underlying bytes storing nibbles.
+    #[inline(always)]
     pub(crate) fn bytes(&self) -> &[u8] {
         &self.bytes
     }

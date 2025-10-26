@@ -3,7 +3,7 @@
 use crate::{JellyfishMerkleTree, OwnedValue, SimpleHasher, mock::MockTreeStore};
 use alloc::vec;
 use alloc::{rc::Rc, vec::Vec};
-use borsh::{BorshDeserialize, BorshSerialize};
+use lencode::prelude::{Cursor, Decode, Encode};
 use proptest::prelude::*;
 use rand::{Rng, RngCore, rng};
 use sha2::Sha512;
@@ -123,13 +123,12 @@ fn mock_tree_from_values_with_version(
 }
 
 proptest! {
-
-
     #[test]
     fn test_internal_node_roundtrip(input in any::<InternalNode>()) {
-        let mut vec = vec![];
-        input.serialize(&mut vec, ).unwrap();
-        let deserialized = InternalNode::deserialize(&mut vec.as_ref()).unwrap();
+        let mut buf = vec![];
+        input.encode(&mut buf).unwrap();
+        let mut cursor = Cursor::new(buf.as_slice());
+        let deserialized = InternalNode::decode(&mut cursor).unwrap();
         assert_eq!(deserialized, input.clone());
     }
 }

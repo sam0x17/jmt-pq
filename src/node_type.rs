@@ -15,7 +15,7 @@ use alloc::format;
 use alloc::vec::Vec;
 use alloc::{boxed::Box, vec};
 use anyhow::Context;
-use borsh::{BorshDeserialize, BorshSerialize};
+use lencode::prelude::{Decode, DedupeDecoder, DedupeEncoder, Encode, Read, Write};
 #[cfg(test)]
 use proptest::prelude::*;
 #[cfg(test)]
@@ -34,17 +34,7 @@ use crate::{
 
 /// The unique key of each node.
 #[derive(
-    Clone,
-    Debug,
-    Hash,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    Serialize,
-    Deserialize,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
+    Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Encode, Decode,
 )]
 #[cfg_attr(any(test), derive(Arbitrary))]
 pub struct NodeKey {
@@ -56,7 +46,8 @@ pub struct NodeKey {
 
 impl NodeKey {
     /// Creates a new `NodeKey`.
-    pub fn new(version: Version, nibble_path: NibblePath) -> Self {
+    #[inline(always)]
+    pub const fn new(version: Version, nibble_path: NibblePath) -> Self {
         Self {
             version,
             nibble_path,
@@ -64,21 +55,25 @@ impl NodeKey {
     }
 
     /// A shortcut to generate a node key consisting of a version and an empty nibble path.
+    #[inline(always)]
     pub(crate) fn new_empty_path(version: Version) -> Self {
         Self::new(version, NibblePath::new(vec![]))
     }
 
     /// Gets the version.
-    pub fn version(&self) -> Version {
+    #[inline(always)]
+    pub const fn version(&self) -> Version {
         self.version
     }
 
     /// Gets the nibble path.
-    pub fn nibble_path(&self) -> &NibblePath {
+    #[inline(always)]
+    pub const fn nibble_path(&self) -> &NibblePath {
         &self.nibble_path
     }
 
     /// Generates a child node key based on this node key.
+    #[inline(always)]
     pub(crate) fn gen_child_node_key(&self, version: Version, n: Nibble) -> Self {
         let mut node_nibble_path = self.nibble_path().clone();
         node_nibble_path.push(n);
@@ -86,6 +81,7 @@ impl NodeKey {
     }
 
     /// Generates parent node key at the same version based on this node key.
+    #[inline(always)]
     pub(crate) fn gen_parent_node_key(&self) -> Self {
         let mut node_nibble_path = self.nibble_path().clone();
         assert!(
@@ -96,21 +92,13 @@ impl NodeKey {
     }
 
     /// Sets the version to the given version.
+    #[inline(always)]
     pub(crate) fn set_version(&mut self, version: Version) {
         self.version = version;
     }
 }
 
-#[derive(
-    Clone,
-    Debug,
-    Eq,
-    PartialEq,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
-    Serialize,
-    Deserialize,
-)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
 pub enum NodeType {
     Leaf,
     Internal { leaf_count: usize },
@@ -131,16 +119,7 @@ impl Arbitrary for NodeType {
 }
 
 /// Each child of [`InternalNode`] encapsulates a nibble forking at this node.
-#[derive(
-    Clone,
-    Debug,
-    Eq,
-    PartialEq,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
-    Serialize,
-    Deserialize,
-)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[cfg_attr(any(test), derive(Arbitrary))]
 pub struct Child {
     /// The hash value of this child node.
@@ -156,7 +135,8 @@ pub struct Child {
 }
 
 impl Child {
-    pub fn new(hash: HashBytes, version: Version, node_type: NodeType) -> Self {
+    #[inline(always)]
+    pub const fn new(hash: HashBytes, version: Version, node_type: NodeType) -> Self {
         Self {
             hash,
             version,
@@ -164,11 +144,13 @@ impl Child {
         }
     }
 
-    pub fn is_leaf(&self) -> bool {
+    #[inline(always)]
+    pub const fn is_leaf(&self) -> bool {
         matches!(self.node_type, NodeType::Leaf)
     }
 
-    pub fn leaf_count(&self) -> usize {
+    #[inline(always)]
+    pub const fn leaf_count(&self) -> usize {
         match self.node_type {
             NodeType::Leaf => 1,
             NodeType::Internal { leaf_count } => leaf_count,
@@ -178,17 +160,7 @@ impl Child {
 
 /// [`Children`] is just a collection of children belonging to a [`InternalNode`], indexed from 0 to
 /// 15, inclusive.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    Default,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
-    Serialize,
-    Deserialize,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Children {
     /// The actual children. We box this array to avoid stack overflows, since the space consumed
     /// is somewhat large
@@ -215,11 +187,13 @@ impl Arbitrary for Children {
 
 impl Children {
     /// Create an empty set of children.
+    #[inline(always)]
     pub fn new() -> Self {
         Default::default()
     }
 
     /// Insert a new child. Insert is guaranteed not to allocate.
+    #[inline(always)]
     pub fn insert(&mut self, nibble: Nibble, child: Child) {
         let idx = nibble.as_usize();
         if self.children[idx].is_none() {
@@ -229,16 +203,19 @@ impl Children {
     }
 
     /// Get the child at the provided nibble.
+    #[inline(always)]
     pub fn get(&self, nibble: Nibble) -> &Option<Child> {
         &self.children[nibble.as_usize()]
     }
 
     /// Check if the struct contains any children.
-    pub fn is_empty(&self) -> bool {
+    #[inline(always)]
+    pub const fn is_empty(&self) -> bool {
         self.num_children == 0
     }
 
     /// Remove the child at the provided nibble.
+    #[inline(always)]
     pub fn remove(&mut self, nibble: Nibble) {
         let idx = nibble.as_usize();
         if self.children[idx].is_some() {
@@ -248,16 +225,19 @@ impl Children {
     }
 
     /// Returns a (possibly unsorted) iterator over the children.
+    #[inline(always)]
     pub fn values(&self) -> impl Iterator<Item = &Child> {
-        self.children.iter().filter_map(|child| child.as_ref())
+        self.children.iter().flatten()
     }
 
     /// Returns a (possibly unsorted) iterator over the children and their respective Nibbles.
+    #[inline(always)]
     pub fn iter(&self) -> impl Iterator<Item = (Nibble, &Child)> {
         self.iter_sorted()
     }
 
     /// Returns a (possibly unsorted) mutable iterator over the children, also yielding their respective nibbles.
+    #[inline(always)]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (Nibble, &mut Child)> {
         self.children
             .iter_mut()
@@ -270,11 +250,13 @@ impl Children {
     }
 
     /// Returns the number of children.
-    pub fn num_children(&self) -> usize {
+    #[inline(always)]
+    pub const fn num_children(&self) -> usize {
         self.num_children
     }
 
     /// Returns an iterator that yields the children and their respective Nibbles in sorted order.
+    #[inline(always)]
     pub fn iter_sorted(&self) -> impl Iterator<Item = (Nibble, &Child)> {
         self.children
             .iter()
@@ -287,21 +269,48 @@ impl Children {
     }
 }
 
+impl Encode for Children {
+    fn encode_ext(
+        &self,
+        writer: &mut impl Write,
+        dedupe_encoder: Option<&mut DedupeEncoder>,
+    ) -> lencode::Result<usize> {
+        let mut total = 0;
+        let mut dedupe_encoder = dedupe_encoder;
+        total += self
+            .children
+            .as_ref()
+            .encode_ext(writer, dedupe_encoder.as_deref_mut())?;
+        total += self
+            .num_children
+            .encode_ext(writer, dedupe_encoder.as_deref_mut())?;
+        Ok(total)
+    }
+}
+
+impl Decode for Children {
+    fn decode_ext(
+        reader: &mut impl Read,
+        dedupe_decoder: Option<&mut DedupeDecoder>,
+    ) -> lencode::Result<Self> {
+        let mut dedupe_decoder = dedupe_decoder;
+        let children_arr =
+            <[Option<Child>; 16]>::decode_ext(reader, dedupe_decoder.as_deref_mut())?;
+        let num_children = usize::decode_ext(reader, dedupe_decoder.as_deref_mut())?;
+
+        Ok(Self {
+            children: Box::new(children_arr),
+            num_children,
+        })
+    }
+}
+
 /// Represents a 4-level subtree with 16 children at the bottom level. Theoretically, this reduces
 /// IOPS to query a tree by 4x since we compress 4 levels in a standard Merkle tree into 1 node.
 /// Though we choose the same internal node structure as that of Patricia Merkle tree, the root hash
 /// computation logic is similar to a 4-level sparse Merkle tree except for some customizations. See
 /// the `CryptoHash` trait implementation below for details.
-#[derive(
-    Clone,
-    Debug,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
-)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
 pub struct InternalNode {
     /// Up to 16 children.
     children: Children,
@@ -384,12 +393,14 @@ impl Arbitrary for InternalNode {
 }
 
 /// Helper for `InternalNode` implementations. Test if the leaf exaclty has one child within the width range specified
+#[inline(always)]
 fn has_only_child(width: u8, range_existence_bitmap: u16, range_leaf_bitmap: u16) -> bool {
-    width == 1 || (range_existence_bitmap.count_ones() == 1 && range_leaf_bitmap != 0)
+    width == 1 || (range_existence_bitmap.is_power_of_two() && range_leaf_bitmap != 0)
 }
 
 /// Helper for `InternalNode` implementations. Test if the leaf exactly has one child *at the position n*
 ///  within the width range specified
+#[inline(always)]
 fn has_child(
     width: u8,
     range_existence_bitmap: u16,
@@ -432,11 +443,13 @@ impl InternalNode {
         leaf_count
     }
 
-    pub fn leaf_count(&self) -> usize {
+    #[inline(always)]
+    pub const fn leaf_count(&self) -> usize {
         self.leaf_count
     }
 
-    pub fn node_type(&self) -> NodeType {
+    #[inline(always)]
+    pub const fn node_type(&self) -> NodeType {
         NodeType::Internal {
             leaf_count: self.leaf_count,
         }
@@ -462,6 +475,7 @@ impl InternalNode {
     }
 
     /// Gets the `n`-th child.
+    #[inline(always)]
     pub fn child(&self, n: Nibble) -> Option<&Child> {
         self.children.get(n).as_ref()
     }
@@ -486,8 +500,8 @@ impl InternalNode {
 
     /// Given a range [start, start + width), returns the sub-bitmap of that range.
     fn range_bitmaps(start: u8, width: u8, bitmaps: (u16, u16)) -> (u16, u16) {
-        assert!(start < 16 && width.count_ones() == 1 && start.is_multiple_of(width));
-        assert!(width <= 16 && (start + width) <= 16);
+        assert!(width > 0 && width <= 16 && width.is_power_of_two());
+        assert!(start < 16 && (start & (width - 1)) == 0 && (start + width) <= 16);
         // A range with `start == 8` and `width == 4` will generate a mask 0b0000111100000000.
         // use as converting to smaller integer types when 'width == 16'
         let mask = (((1u32 << width) - 1) << start) as u16;
@@ -790,40 +804,32 @@ impl InternalNode {
 
 /// Given a nibble, computes the start position of its `child_half_start` and `sibling_half_start`
 /// at `height` level.
+#[inline(always)]
 pub(crate) fn get_child_and_sibling_half_start(n: Nibble, height: u8) -> (u8, u8) {
     // Get the index of the first child belonging to the same subtree whose root, let's say `r` is
     // at `height` that the n-th child belongs to.
     // Note: `child_half_start` will be always equal to `n` at height 0.
-    let child_half_start = (0xff << height) & u8::from(n);
+    debug_assert!(height < 8);
+    let mask = u8::MAX.wrapping_shl(height.into());
+    let child_half_start = u8::from(n) & mask;
 
     // Get the index of the first child belonging to the subtree whose root is the sibling of `r`
     // at `height`.
-    let sibling_half_start = child_half_start ^ (1 << height);
+    let sibling_half_start = child_half_start ^ (1u8.wrapping_shl(height.into()));
 
     (child_half_start, sibling_half_start)
 }
 
 /// Given a nibble, computes the start position of its `child_half_start` at `height` level.
+#[inline(always)]
 pub(crate) fn get_child_half_start(n: Nibble, height: u8) -> u8 {
-    // Get the index of the first child belonging to the same subtree whose root, let's say `r` is
-    // at `height` that the n-th child belongs to.
-    // Note: `child_half_start` will be always equal to `n` at height 0.
-    (0xff << height) & u8::from(n)
+    get_child_and_sibling_half_start(n, height).0
 }
 
 /// Represents a key-value pair in the map.
 ///
 /// Note: this does not store the key itself.
-#[derive(
-    Clone,
-    Debug,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
-)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
 pub struct LeafNode {
     /// The hash of the key for this entry.
     key_hash: KeyHash,
@@ -833,7 +839,8 @@ pub struct LeafNode {
 
 impl LeafNode {
     /// Creates a new leaf node.
-    pub fn new(key_hash: KeyHash, value_hash: ValueHash) -> Self {
+    #[inline(always)]
+    pub const fn new(key_hash: KeyHash, value_hash: ValueHash) -> Self {
         Self {
             key_hash,
             value_hash,
@@ -841,15 +848,18 @@ impl LeafNode {
     }
 
     /// Gets the key hash.
-    pub fn key_hash(&self) -> KeyHash {
+    #[inline(always)]
+    pub const fn key_hash(&self) -> KeyHash {
         self.key_hash
     }
 
     /// Gets the associated value hash.
-    pub(crate) fn value_hash(&self) -> ValueHash {
+    #[inline(always)]
+    pub(crate) const fn value_hash(&self) -> ValueHash {
         self.value_hash
     }
 
+    #[inline(always)]
     pub fn hash<H: SimpleHasher>(&self) -> HashBytes {
         SparseMerkleLeafNode::new(self.key_hash, self.value_hash).hash::<H>()
     }
@@ -862,7 +872,7 @@ impl From<LeafNode> for SparseMerkleLeafNode {
 }
 
 /// The concrete node type of [`JellyfishMerkleTree`](crate::JellyfishMerkleTree).
-#[derive(Clone, Debug, Eq, PartialEq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Encode, Decode, Serialize, Deserialize)]
 pub enum Node {
     /// Represents `null`.
     Null,
@@ -892,23 +902,27 @@ impl From<LeafNode> for Node {
 
 impl Node {
     /// Creates the [`Null`](Node::Null) variant.
-    pub(crate) fn new_null() -> Self {
+    #[inline(always)]
+    pub(crate) const fn new_null() -> Self {
         Node::Null
     }
 
     /// Creates the [`Internal`](Node::Internal) variant.
     #[cfg(test)]
+    #[inline(always)]
     pub(crate) fn new_internal(children: Children) -> Self {
         Node::Internal(InternalNode::new(children))
     }
 
     /// Creates the [`Leaf`](Node::Leaf) variant.
-    pub(crate) fn new_leaf(key_hash: KeyHash, value_hash: ValueHash) -> Self {
+    #[inline(always)]
+    pub(crate) const fn new_leaf(key_hash: KeyHash, value_hash: ValueHash) -> Self {
         Node::Leaf(LeafNode::new(key_hash, value_hash))
     }
 
     /// Creates the [`Leaf`](Node::Leaf) variant by hashing a raw value.
     #[cfg(test)]
+    #[inline(always)]
     pub(crate) fn leaf_from_value<H: SimpleHasher>(
         key_hash: KeyHash,
         value: impl AsRef<[u8]>,
@@ -917,11 +931,13 @@ impl Node {
     }
 
     /// Returns `true` if the node is a leaf node.
+    #[inline(always)]
     pub(crate) fn is_leaf(&self) -> bool {
         matches!(self, Node::Leaf(_))
     }
 
     /// Returns `NodeType`
+    #[inline(always)]
     pub(crate) fn node_type(&self) -> NodeType {
         match self {
             // The returning value will be used to construct a `Child` of a internal node, while an
@@ -933,6 +949,7 @@ impl Node {
     }
 
     /// Returns leaf count if known
+    #[inline(always)]
     pub(crate) fn leaf_count(&self) -> usize {
         match self {
             Node::Null => 0,
@@ -942,6 +959,7 @@ impl Node {
     }
 
     /// Computes the hash of nodes.
+    #[inline(always)]
     pub(crate) fn hash<H: SimpleHasher>(&self) -> HashBytes {
         match self {
             Node::Null => SPARSE_MERKLE_PLACEHOLDER_HASH,

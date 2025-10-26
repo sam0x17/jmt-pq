@@ -74,6 +74,7 @@ extern crate alloc;
 use core::fmt::Debug;
 
 use digest::{Digest, consts::U64};
+use lencode::prelude::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "std")]
 use thiserror::Error;
@@ -202,17 +203,7 @@ use proptest_derive::Arbitrary;
 
 /// A root of a [`JellyfishMerkleTree`].
 #[derive(
-    Copy,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
+    Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, Decode,
 )]
 #[cfg_attr(any(test), derive(Arbitrary))]
 pub struct RootHash(#[serde(with = "crate::hash_bytes_serde")] pub HashBytes);
@@ -244,33 +235,13 @@ impl AsRef<[u8]> for RootHash {
 ///
 /// The [`JellyfishMerkleTree`] only stores key hashes, not full keys.  
 #[derive(
-    Copy,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
+    Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, Decode,
 )]
 #[cfg_attr(any(test), derive(Arbitrary))]
 pub struct KeyHash(#[serde(with = "crate::hash_bytes_serde")] pub HashBytes);
 
 #[derive(
-    Copy,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
+    Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, Decode,
 )]
 #[cfg_attr(any(test), derive(Arbitrary))]
 // This needs to be public for the fuzzing/Arbitrary feature, but we don't

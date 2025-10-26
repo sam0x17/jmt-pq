@@ -17,16 +17,14 @@ use proptest_derive::Arbitrary;
 
 pub use self::definition::{SparseMerkleProof, SparseMerkleRangeProof, UpdateMerkleProof};
 use crate::{HashBytes, KeyHash, SPARSE_MERKLE_PLACEHOLDER_HASH, ValueHash};
-use borsh::{BorshDeserialize, BorshSerialize};
+use lencode::prelude::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 pub const LEAF_DOMAIN_SEPARATOR: &[u8] = b"JMT::LeafNode";
 pub const INTERNAL_DOMAIN_SEPARATOR: &[u8] = b"JMT::IntrnalNode";
 
 #[cfg_attr(all(test, feature = "std"), derive(Arbitrary))]
-#[derive(
-    Serialize, Deserialize, Clone, Copy, Eq, PartialEq, BorshSerialize, BorshDeserialize, Debug,
-)]
+#[derive(Serialize, Deserialize, Clone, Copy, Eq, PartialEq, Encode, Decode, Debug)]
 /// A [`SparseMerkleNode`] is either a null node, an internal sparse node or a leaf node.
 /// This is useful in the delete case to know if we need to coalesce the leaves on deletion.
 /// The [`SparseMerkleNode`] needs to store either a [`SparseMerkleInternalNode`] or a [`SparseMerkleLeafNode`]
@@ -54,9 +52,7 @@ impl SparseMerkleNode {
     }
 }
 
-#[derive(
-    Serialize, Deserialize, Clone, Copy, Eq, PartialEq, BorshSerialize, BorshDeserialize, Debug,
-)]
+#[derive(Serialize, Deserialize, Clone, Copy, Eq, PartialEq, Encode, Decode, Debug)]
 #[cfg_attr(all(test, feature = "std"), derive(Arbitrary))]
 pub(crate) struct SparseMerkleInternalNode {
     #[serde(with = "crate::hash_bytes_serde")]
@@ -83,7 +79,7 @@ impl SparseMerkleInternalNode {
     }
 }
 
-#[derive(Eq, Copy, Serialize, Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]
+#[derive(Eq, Copy, Serialize, Deserialize, Encode, Decode)]
 pub struct SparseMerkleLeafNode {
     key_hash: KeyHash,
     value_hash: ValueHash,

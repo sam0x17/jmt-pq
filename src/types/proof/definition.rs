@@ -13,11 +13,12 @@ use crate::{
 };
 use alloc::vec::Vec;
 use anyhow::{Result, bail, ensure, format_err};
+use lencode::prelude::{Decode, DedupeDecoder, DedupeEncoder, Encode, Read, Write};
 use serde::{Deserialize, Serialize};
 
 /// A proof that can be used to authenticate an element in a Sparse Merkle Tree given trusted root
 /// hash. For example, `TransactionInfoToAccountProof` can be constructed on top of this structure.
-#[derive(Serialize, Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct SparseMerkleProof<H: SimpleHasher> {
     /// This proof can be used to authenticate whether a given leaf exists in the tree or not.
     ///     - If this is `Some(leaf_node)`
@@ -38,7 +39,6 @@ pub struct SparseMerkleProof<H: SimpleHasher> {
     siblings: Vec<SparseMerkleNode>,
 
     /// A marker type showing which hash function is used in this proof.
-    #[borsh(bound(serialize = "", deserialize = ""))]
     phantom_hasher: PhantomData<H>,
 }
 
@@ -512,10 +512,54 @@ impl<H: SimpleHasher> SparseMerkleProof<H> {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]
-pub struct UpdateMerkleProof<H: SimpleHasher>(
-    #[borsh(bound(serialize = "", deserialize = ""))] Vec<SparseMerkleProof<H>>,
-);
+impl<H: SimpleHasher> Encode for SparseMerkleProof<H> {
+    fn encode_ext(
+        &self,
+        writer: &mut impl Write,
+        dedupe_encoder: Option<&mut DedupeEncoder>,
+    ) -> lencode::Result<usize> {
+        let mut total = 0;
+        match dedupe_encoder {
+            Some(encoder) => {
+                total += self.leaf.encode_ext(writer, Some(&mut *encoder))?;
+                total += self.siblings.encode_ext(writer, Some(&mut *encoder))?;
+            }
+            None => {
+                total += self.leaf.encode_ext(writer, None)?;
+                total += self.siblings.encode_ext(writer, None)?;
+            }
+        }
+        Ok(total)
+    }
+}
+
+impl<H: SimpleHasher> Decode for SparseMerkleProof<H> {
+    fn decode_ext(
+        reader: &mut impl Read,
+        dedupe_decoder: Option<&mut DedupeDecoder>,
+    ) -> lencode::Result<Self> {
+        let (leaf, siblings) = match dedupe_decoder {
+            Some(decoder) => {
+                let leaf = Option::<SparseMerkleLeafNode>::decode_ext(reader, Some(&mut *decoder))?;
+                let siblings = Vec::<SparseMerkleNode>::decode_ext(reader, Some(&mut *decoder))?;
+                (leaf, siblings)
+            }
+            None => {
+                let leaf = Option::<SparseMerkleLeafNode>::decode_ext(reader, None)?;
+                let siblings = Vec::<SparseMerkleNode>::decode_ext(reader, None)?;
+                (leaf, siblings)
+            }
+        };
+        Ok(Self {
+            leaf,
+            siblings,
+            phantom_hasher: PhantomData,
+        })
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateMerkleProof<H: SimpleHasher>(Vec<SparseMerkleProof<H>>);
 
 impl<H: SimpleHasher> UpdateMerkleProof<H> {
     pub fn new(merkle_proofs: Vec<SparseMerkleProof<H>>) -> Self {
@@ -573,6 +617,32 @@ impl<H: SimpleHasher> UpdateMerkleProof<H> {
     }
 }
 
+impl<H: SimpleHasher + 'static> Encode for UpdateMerkleProof<H> {
+    fn encode_ext(
+        &self,
+        writer: &mut impl Write,
+        dedupe_encoder: Option<&mut DedupeEncoder>,
+    ) -> lencode::Result<usize> {
+        match dedupe_encoder {
+            Some(encoder) => self.0.encode_ext(writer, Some(&mut *encoder)),
+            None => self.0.encode_ext(writer, None),
+        }
+    }
+}
+
+impl<H: SimpleHasher + 'static> Decode for UpdateMerkleProof<H> {
+    fn decode_ext(
+        reader: &mut impl Read,
+        dedupe_decoder: Option<&mut DedupeDecoder>,
+    ) -> lencode::Result<Self> {
+        let proofs = match dedupe_decoder {
+            Some(decoder) => Vec::<SparseMerkleProof<H>>::decode_ext(reader, Some(&mut *decoder))?,
+            None => Vec::<SparseMerkleProof<H>>::decode_ext(reader, None)?,
+        };
+        Ok(Self(proofs))
+    }
+}
+
 /// Note: this is not a range proof in the sense that a range of nodes is verified!
 /// Instead, it verifies the entire left part of the tree up to a known rightmost node.
 /// See the description below.
@@ -596,7 +666,7 @@ impl<H: SimpleHasher> UpdateMerkleProof<H> {
 ///
 /// if the proof wants show that `[a, b, c, d, e]` exists in the tree, it would need the siblings
 /// `X` and `h` on the right.
-#[derive(Eq, Serialize, Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]
+#[derive(Eq, Serialize, Deserialize)]
 pub struct SparseMerkleRangeProof<H: SimpleHasher> {
     /// The vector of siblings on the right of the path from root to last leaf. The ones near the
     /// bottom are at the beginning of the vector. In the above example, it's `[X, h]`.
@@ -698,12 +768,42 @@ impl<H: SimpleHasher> SparseMerkleRangeProof<H> {
     }
 }
 
+impl<H: SimpleHasher> Encode for SparseMerkleRangeProof<H> {
+    fn encode_ext(
+        &self,
+        writer: &mut impl Write,
+        dedupe_encoder: Option<&mut DedupeEncoder>,
+    ) -> lencode::Result<usize> {
+        match dedupe_encoder {
+            Some(encoder) => self.right_siblings.encode_ext(writer, Some(&mut *encoder)),
+            None => self.right_siblings.encode_ext(writer, None),
+        }
+    }
+}
+
+impl<H: SimpleHasher> Decode for SparseMerkleRangeProof<H> {
+    fn decode_ext(
+        reader: &mut impl Read,
+        dedupe_decoder: Option<&mut DedupeDecoder>,
+    ) -> lencode::Result<Self> {
+        let siblings = match dedupe_decoder {
+            Some(decoder) => Vec::<SparseMerkleNode>::decode_ext(reader, Some(&mut *decoder))?,
+            None => Vec::<SparseMerkleNode>::decode_ext(reader, None)?,
+        };
+        Ok(Self {
+            right_siblings: siblings,
+            _phantom: PhantomData,
+        })
+    }
+}
+
 #[cfg(test)]
 mod serialization_tests {
     //! These tests ensure that the various proofs supported by the JMT can actually be serialized and deserialized
     //! when instantiated with a specific hasher. This is done as a sanity check to ensure the trait bounds inferred by Rustc
     //! are not too restrictive.
 
+    use lencode::prelude::{Cursor, Decode, Encode};
     use sha2::Sha512;
 
     use crate::{
@@ -748,13 +848,15 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_sparse_merkle_proof_roundtrip_borsh() {
-        use borsh::BorshDeserialize;
+    fn test_sparse_merkle_proof_roundtrip_lencode() {
         let proof = get_test_proof();
-        let serialized_proof = borsh::to_vec(&proof).expect("serialization is infallible");
+        let mut buffer = alloc::vec![];
+        proof
+            .encode(&mut buffer)
+            .expect("serialization is infallible");
+        let mut cursor = Cursor::new(buffer.as_slice());
         let deserialized =
-            SparseMerkleProof::<Sha512>::deserialize(&mut serialized_proof.as_slice())
-                .expect("serialized proof is valid");
+            SparseMerkleProof::<Sha512>::decode(&mut cursor).expect("serialized proof is valid");
 
         assert_eq!(proof, deserialized);
     }
@@ -770,13 +872,15 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_sparse_merkle_range_proof_roundtrip_borsh() {
-        use borsh::BorshDeserialize;
+    fn test_sparse_merkle_range_proof_roundtrip_lencode() {
         let proof = get_test_range_proof();
-        let serialized_proof = borsh::to_vec(&proof).expect("serialization is infallible");
-        let deserialized =
-            SparseMerkleRangeProof::<Sha512>::deserialize(&mut serialized_proof.as_slice())
-                .expect("serialized proof is valid");
+        let mut buffer = alloc::vec![];
+        proof
+            .encode(&mut buffer)
+            .expect("serialization is infallible");
+        let mut cursor = Cursor::new(buffer.as_slice());
+        let deserialized = SparseMerkleRangeProof::<Sha512>::decode(&mut cursor)
+            .expect("serialized proof is valid");
 
         assert_eq!(proof, deserialized);
     }
