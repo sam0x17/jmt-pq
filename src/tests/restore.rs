@@ -119,7 +119,7 @@ proptest! {
     ) {
         let restore_db = Arc::new(MockTreeStore::default());
         // For this test, restore everything without interruption.
-        restore_without_interruption::<blake3::Hasher>(&btree, target_version, &restore_db, true);
+        restore_without_interruption::<crate::blake3_impl::Blake3Hasher>(&btree, target_version, &restore_db, true);
     }
 
     #[test]
@@ -130,7 +130,7 @@ proptest! {
                 (Just(btree), 1..len)
             })
     ) {
-        test_restore_with_interruption::<blake3::Hasher>(entries, first_batch_size )
+        test_restore_with_interruption::<crate::blake3_impl::Blake3Hasher>(entries, first_batch_size )
     }
 
 
@@ -142,9 +142,9 @@ proptest! {
         target_version in 0u64..2000,
     ) {
         let restore_db = Arc::new(MockTreeStore::new(true /* allow_overwrite */));
-        restore_without_interruption::<blake3::Hasher>(&btree1, target_version, &restore_db, true);
+        restore_without_interruption::<crate::blake3_impl::Blake3Hasher>(&btree1, target_version, &restore_db, true);
         // overwrite, an entirely different tree
-        restore_without_interruption::<blake3::Hasher>(&btree2, target_version, &restore_db, false);
+        restore_without_interruption::<crate::blake3_impl::Blake3Hasher>(&btree2, target_version, &restore_db, false);
     }
 }
 

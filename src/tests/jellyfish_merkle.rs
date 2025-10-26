@@ -732,14 +732,14 @@ fn many_versions_get_proof_and_verify_tree_root<H: SimpleHasher>(seed: &[u8], nu
     }
 
     for (i, (k, v, _)) in kvs.iter().enumerate() {
-        let random_version = rng.gen_range(i..i + num_versions);
+        let random_version = rng.random_range(i..i + num_versions);
         let (value, proof) = tree.get_with_proof(*k, random_version as Version).unwrap();
         assert_eq!(value.unwrap(), *v);
         assert!(proof.verify(roots[random_version], *k, Some(v)).is_ok());
     }
 
     for (i, (k, _, v)) in kvs.iter().enumerate() {
-        let random_version = rng.gen_range(i + num_versions..2 * num_versions);
+        let random_version = rng.random_range(i + num_versions..2 * num_versions);
         let (value, proof) = tree.get_with_proof(*k, random_version as Version).unwrap();
         assert_eq!(value.unwrap(), *v);
         assert!(proof.verify(roots[random_version], *k, Some(v)).is_ok());
@@ -796,4 +796,4 @@ impl_jellyfish_tests_for_hasher!(sha512_tests, sha2::Sha512);
 
 // Optionally implement the test suite for blake3
 #[cfg(feature = "blake3_tests")]
-impl_jellyfish_tests_for_hasher!(blake3_tests, blake3::Hasher);
+impl_jellyfish_tests_for_hasher!(blake3_tests, crate::blake3_impl::Blake3Hasher);

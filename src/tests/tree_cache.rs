@@ -1,7 +1,7 @@
 // Copyright (c) The Diem Core Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use rand::{RngCore, rngs::OsRng};
+use rand::{rng, RngCore};
 use sha2::Sha512;
 
 use crate::{
@@ -15,9 +15,10 @@ use crate::{
 
 fn random_leaf_with_key(next_version: Version) -> (LeafNode, OwnedValue, NodeKey) {
     let mut key: HashBytes = [0u8; crate::HASH_SIZE];
-    OsRng.fill_bytes(&mut key);
+    let mut rng = rng();
+    rng.fill_bytes(&mut key);
     let mut value: HashBytes = [0u8; crate::HASH_SIZE];
-    OsRng.fill_bytes(&mut value);
+    rng.fill_bytes(&mut value);
     let key_hash: KeyHash = KeyHash::with::<Sha512>(key);
     let node = LeafNode::new(key_hash, ValueHash::with::<Sha512>(value));
     let node_key = NodeKey::new(next_version, NibblePath::new(key_hash.0.to_vec()));

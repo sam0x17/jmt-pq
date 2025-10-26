@@ -417,19 +417,26 @@ impl SimpleHasher for TransparentHasher {
 }
 
 #[cfg(feature = "blake3_tests")]
-impl SimpleHasher for blake3::Hasher {
-    fn new() -> Self {
-        blake3::Hasher::new()
-    }
+mod blake3_impl {
+    use super::{HashBytes, SimpleHasher};
 
-    fn update(&mut self, data: &[u8]) {
-        blake3::Hasher::update(self, data);
-    }
+    #[derive(Default)]
+    pub struct Blake3Hasher(blake3::Hasher);
 
-    fn finalize(self) -> HashBytes {
-        let mut output = [0u8; HASH_SIZE];
-        let mut reader = self.finalize_xof();
-        reader.fill(&mut output);
-        output
+    impl SimpleHasher for Blake3Hasher {
+        fn new() -> Self {
+            Self(blake3::Hasher::new())
+        }
+
+        fn update(&mut self, data: &[u8]) {
+            self.0.update(data);
+        }
+
+        fn finalize(self) -> HashBytes {
+            let digest = self.0.finalize();
+            let mut buf = [0u8; super::HASH_SIZE];
+            buf[..digest.as_bytes().len()].copy_from_slice(digest.as_bytes());
+            buf
+        }
     }
 }

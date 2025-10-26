@@ -5,7 +5,7 @@ use alloc::{rc::Rc, vec::Vec};
 use borsh::{BorshDeserialize, BorshSerialize};
 use alloc::vec;
 use proptest::prelude::*;
-use rand::{Rng, RngCore, rngs::OsRng};
+use rand::{rng, Rng, RngCore};
 use sha2::Sha512;
 
 use crate::{
@@ -28,8 +28,9 @@ fn hash_leaf(key: KeyHash, value_hash: ValueHash) -> HashBytes {
 }
 
 fn random_hash_bytes() -> HashBytes {
-    let mut bytes = [0u8; crate::HASH_SIZE];
-    OsRng.fill_bytes(&mut bytes);
+    let mut bytes = [0u8; HASH_SIZE];
+    let mut rng = rng();
+    rng.fill_bytes(&mut bytes);
     bytes
 }
 
@@ -40,7 +41,8 @@ fn random_k_nibbles_node_key(k: u8) -> NodeKey {
     let remainder = k % 2;
     let mut nibbles = vec![0u8; usize::from(num_nibbles + remainder)];
 
-    OsRng.fill_bytes(&mut nibbles);
+    let mut rng = rng();
+    rng.fill_bytes(&mut nibbles);
 
     let nibble_path = if remainder == 1 {
         *nibbles.last_mut().unwrap() &= 0xf0;
@@ -375,8 +377,13 @@ value1 in prop::collection::vec(any::<u8>(), 1..10), value2 in prop::collection:
 
         let mut leaf_keys: Vec<(NodeKey, KeyHash)> = vec![];
 
-        leaf_keys.push(gen_leaf_keys(0 /* version */, internal_node_key.nibble_path(),
-         vec![index0, Nibble::from(OsRng.r#gen::<u8>() % 16)]));
+        let mut rng = rng();
+        let random_nibble0 = rng.random_range(0..16);
+        leaf_keys.push(gen_leaf_keys(
+            0,
+            internal_node_key.nibble_path(),
+            vec![index0, Nibble::from(random_nibble0)],
+        ));
 
         let internal2_node_key = gen_node_keys(0 /* version */, internal_node_key.nibble_path(), vec![2.into()]);
 
@@ -387,7 +394,12 @@ value1 in prop::collection::vec(any::<u8>(), 1..10), value2 in prop::collection:
         leaf_keys.push(gen_leaf_keys(0, internal3_node_key.nibble_path(), vec![index3]));
         leaf_keys.push(gen_leaf_keys(0, internal3_node_key.nibble_path(), vec![index4]));
 
-        leaf_keys.push(gen_leaf_keys(0 /* version */, internal_node_key.nibble_path(), vec![index5, Nibble::from(OsRng.r#gen::<u8>() % 16)]));
+        let random_nibble1 = rng.random_range(0..16);
+        leaf_keys.push(gen_leaf_keys(
+            0,
+            internal_node_key.nibble_path(),
+            vec![index5, Nibble::from(random_nibble1)],
+        ));
 
         let mut leaves: Vec<Node> = vec![];
         let mut leaf_hashes: Vec<HashBytes> = vec![];
