@@ -1,7 +1,7 @@
 // Copyright (c) The Diem Core Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use rand::{rng, RngCore};
+use rand::{RngCore, rng};
 use sha2::Sha512;
 
 use crate::{

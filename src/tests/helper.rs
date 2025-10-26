@@ -617,8 +617,9 @@ pub fn test_clairvoyant_construction_matches_interleaved_construction_proved(
 pub fn arb_kv_pair_with_distinct_last_nibble()
 -> impl Strategy<Value = ((KeyHash, OwnedValue), (KeyHash, OwnedValue))> {
     (
-        any::<KeyHash>()
-            .prop_filter("Can't be 0xffffff...", |key| *key != KeyHash([0xff; HASH_SIZE])),
+        any::<KeyHash>().prop_filter("Can't be 0xffffff...", |key| {
+            *key != KeyHash([0xff; HASH_SIZE])
+        }),
         vec(any::<OwnedValue>(), 2),
     )
         .prop_map(|(key1, accounts)| {

@@ -12,8 +12,8 @@ use std::thread;
 
 use super::helper::plus_one;
 use crate::{
-    HASH_SIZE, KeyHash, OwnedValue, Sha512Jmt, iterator::JellyfishMerkleIterator, mock::MockTreeStore,
-    types::Version,
+    HASH_SIZE, KeyHash, OwnedValue, Sha512Jmt, iterator::JellyfishMerkleIterator,
+    mock::MockTreeStore, types::Version,
 };
 
 #[test]
@@ -116,7 +116,8 @@ fn test_n_consecutive_addresses(n: usize) {
 fn run_tests(db: Arc<MockTreeStore>, btree: &BTreeMap<KeyHash, OwnedValue>, version: Version) {
     {
         let iter =
-            JellyfishMerkleIterator::new(Arc::clone(&db), version, KeyHash([0u8; HASH_SIZE])).unwrap();
+            JellyfishMerkleIterator::new(Arc::clone(&db), version, KeyHash([0u8; HASH_SIZE]))
+                .unwrap();
         assert_eq!(
             iter.collect::<Result<Vec<_>>>().unwrap(),
             btree.clone().into_iter().collect::<Vec<_>>(),

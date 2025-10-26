@@ -1,11 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // SPDX-License-Identifier: Apache-2.0
 use crate::{JellyfishMerkleTree, OwnedValue, SimpleHasher, mock::MockTreeStore};
+use alloc::vec;
 use alloc::{rc::Rc, vec::Vec};
 use borsh::{BorshDeserialize, BorshSerialize};
-use alloc::vec;
 use proptest::prelude::*;
-use rand::{rng, Rng, RngCore};
+use rand::{Rng, RngCore, rng};
 use sha2::Sha512;
 
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
     storage::TreeReader,
     types::{
         Version,
-        nibble::{Nibble, nibble_path::NibblePath, ROOT_NIBBLE_HEIGHT},
+        nibble::{Nibble, ROOT_NIBBLE_HEIGHT, nibble_path::NibblePath},
         proof::{SparseMerkleInternalNode, SparseMerkleLeafNode},
     },
 };

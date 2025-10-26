@@ -2,7 +2,7 @@
 
 use core::ops::Index;
 
-use crate::{HashBytes, HASH_SIZE};
+use crate::{HASH_SIZE, HashBytes};
 use mirai_annotations::*;
 
 pub trait Bytes32Ext: Index<usize> + Sized {

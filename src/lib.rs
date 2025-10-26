@@ -88,7 +88,7 @@ mod types;
 mod writer;
 
 pub(crate) mod hash_bytes_serde {
-    use super::{HashBytes, HASH_SIZE};
+    use super::{HASH_SIZE, HashBytes};
     use alloc::vec::Vec;
     use core::fmt;
     use serde::de::{Error as DeError, Expected};

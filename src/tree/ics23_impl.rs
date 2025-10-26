@@ -3,8 +3,8 @@ use alloc::vec::Vec;
 use anyhow::Result;
 
 use crate::{
-    HASH_SIZE, JellyfishMerkleTree, KeyHash, OwnedValue,
-    SPARSE_MERKLE_PLACEHOLDER_HASH, SimpleHasher, Version,
+    HASH_SIZE, JellyfishMerkleTree, KeyHash, OwnedValue, SPARSE_MERKLE_PLACEHOLDER_HASH,
+    SimpleHasher, Version,
     proof::{INTERNAL_DOMAIN_SEPARATOR, LEAF_DOMAIN_SEPARATOR, SparseMerkleProof},
     storage::HasPreimage,
     storage::TreeReader,
@@ -260,7 +260,9 @@ mod tests {
     use sha2::Sha512;
 
     use super::*;
-    use crate::{HashBytes, KeyHash, SPARSE_MERKLE_PLACEHOLDER_HASH, TransparentHasher, mock::MockTreeStore};
+    use crate::{
+        HashBytes, KeyHash, SPARSE_MERKLE_PLACEHOLDER_HASH, TransparentHasher, mock::MockTreeStore,
+    };
 
     proptest! {
          #![proptest_config(ProptestConfig {
@@ -696,7 +698,10 @@ mod tests {
     /// This is useful to create keys with specific hexadecimal representations.
     fn prefix_pad(hex_str: &str) -> HashBytes {
         if hex_str.len() > HASH_SIZE * 2 {
-            panic!("hexadecimal string is longer than {} bytes when decoded", HASH_SIZE);
+            panic!(
+                "hexadecimal string is longer than {} bytes when decoded",
+                HASH_SIZE
+            );
         }
 
         let mut bytes = Vec::with_capacity(hex_str.len() / 2);

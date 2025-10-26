@@ -13,7 +13,8 @@ use std::collections::HashMap;
 use crate::proof::definition::UpdateMerkleProof;
 use crate::proof::{SparseMerkleLeafNode, SparseMerkleNode};
 use crate::{
-    Bytes32Ext, HashBytes, KeyHash, MissingRootError, OwnedValue, RootHash, SimpleHasher, ValueHash,
+    Bytes32Ext, HashBytes, KeyHash, MissingRootError, OwnedValue, RootHash, SimpleHasher,
+    ValueHash,
     node_type::{Child, Children, InternalNode, LeafNode, Node, NodeKey, NodeType},
     storage::{TreeReader, TreeUpdateBatch},
     tree_cache::TreeCache,

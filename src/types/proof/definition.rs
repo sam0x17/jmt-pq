@@ -707,9 +707,8 @@ mod serialization_tests {
     use sha2::Sha512;
 
     use crate::{
-        KeyHash, ValueHash,
+        HASH_SIZE, KeyHash, ValueHash,
         proof::{SparseMerkleInternalNode, SparseMerkleLeafNode, SparseMerkleNode},
-        HASH_SIZE,
     };
 
     use super::{SparseMerkleProof, SparseMerkleRangeProof};
@@ -721,7 +720,8 @@ mod serialization_tests {
                 ValueHash([2u8; HASH_SIZE]),
             )),
             siblings: alloc::vec![SparseMerkleNode::Internal(SparseMerkleInternalNode::new(
-                [3u8; HASH_SIZE], [4u8; HASH_SIZE]
+                [3u8; HASH_SIZE],
+                [4u8; HASH_SIZE]
             ))],
             phantom_hasher: Default::default(),
         }
@@ -730,7 +730,8 @@ mod serialization_tests {
     fn get_test_range_proof() -> SparseMerkleRangeProof<Sha512> {
         SparseMerkleRangeProof {
             right_siblings: alloc::vec![SparseMerkleNode::Internal(SparseMerkleInternalNode::new(
-                [3u8; HASH_SIZE], [4u8; HASH_SIZE]
+                [3u8; HASH_SIZE],
+                [4u8; HASH_SIZE]
             ))],
             _phantom: Default::default(),
         }
